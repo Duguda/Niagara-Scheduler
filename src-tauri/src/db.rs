@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS ddays (
     image TEXT,
     yearly INTEGER NOT NULL DEFAULT 0,
     count_from_one INTEGER NOT NULL DEFAULT 0,
-    shape TEXT NOT NULL DEFAULT 'normal'
+    shape TEXT NOT NULL DEFAULT 'normal',
+    position INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS todo_groups (
@@ -151,7 +152,8 @@ CREATE TABLE IF NOT EXISTS trpg_entries (
     created_at INTEGER NOT NULL,
     pair       TEXT    NOT NULL DEFAULT '',
     folder     TEXT    NOT NULL DEFAULT '',
-    position   INTEGER NOT NULL DEFAULT 0
+    position   INTEGER NOT NULL DEFAULT 0,
+    play_count INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS books (
@@ -317,6 +319,9 @@ pub struct DDay {
     /// Card shape on the D-Day page: `normal`, `wide` (landscape) or `tall` (portrait).
     #[serde(default = "DDay::default_shape")]
     pub shape: String,
+    /// Place in the custom (dragged) order on the D-Day page; ties go by date.
+    #[serde(default)]
+    pub position: i64,
 }
 
 impl DDay {
@@ -512,6 +517,13 @@ fn migrate(conn: &Connection) -> DbResult<()> {
     if !has_shape {
         conn.execute_batch("ALTER TABLE ddays ADD COLUMN shape TEXT NOT NULL DEFAULT 'normal'")?;
     }
+    // Custom order on the D-Day page. All 0 at first, so it starts out in date order.
+    let has_dday_position = conn
+        .prepare("SELECT 1 FROM pragma_table_info('ddays') WHERE name = 'position'")?
+        .exists([])?;
+    if !has_dday_position {
+        conn.execute_batch("ALTER TABLE ddays ADD COLUMN position INTEGER NOT NULL DEFAULT 0")?;
+    }
     let has_cancelled = conn
         .prepare("SELECT 1 FROM pragma_table_info('events') WHERE name = 'cancelled'")?
         .exists([])?;
@@ -566,6 +578,12 @@ fn migrate(conn: &Connection) -> DbResult<()> {
         .exists([])?;
     if !has_trpg_position {
         conn.execute_batch("ALTER TABLE trpg_entries ADD COLUMN position INTEGER NOT NULL DEFAULT 0")?;
+    }
+    let has_trpg_play_count = conn
+        .prepare("SELECT 1 FROM pragma_table_info('trpg_entries') WHERE name = 'play_count'")?
+        .exists([])?;
+    if !has_trpg_play_count {
+        conn.execute_batch("ALTER TABLE trpg_entries ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0")?;
     }
     let has_tags = conn
         .prepare("SELECT 1 FROM pragma_table_info('events') WHERE name = 'tags'")?
@@ -813,7 +831,7 @@ impl Db {
     pub fn ddays(&self) -> DbResult<Vec<DDay>> {
         let mut st = self
             .conn
-            .prepare("SELECT id, title, date, color, image, yearly, count_from_one, shape FROM ddays ORDER BY date")?;
+            .prepare("SELECT id, title, date, color, image, yearly, count_from_one, shape, position FROM ddays ORDER BY date")?;
         st.query_map([], |r| {
             Ok(DDay {
                 id: r.get(0)?,
@@ -824,6 +842,7 @@ impl Db {
                 yearly: r.get(5)?,
                 count_from_one: r.get(6)?,
                 shape: r.get(7)?,
+                position: r.get(8)?,
             })
         })?
         .collect()
@@ -833,7 +852,9 @@ impl Db {
         let date = d.date.format(D_FMT).to_string();
         if d.id == 0 {
             self.conn.execute(
-                "INSERT INTO ddays(title, date, color, image, yearly, count_from_one, shape) VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                // New D-Days go last in the custom order.
+                "INSERT INTO ddays(title, date, color, image, yearly, count_from_one, shape, position)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, (SELECT COALESCE(MAX(position), 0) + 1 FROM ddays))",
                 params![d.title, date, d.color, d.image, d.yearly, d.count_from_one, d.shape],
             )?;
         } else {
@@ -860,6 +881,15 @@ impl Db {
             }
         }
         Ok(names)
+    }
+
+    /// Saves the custom order of the D-Day page (dragged into place); `ids` lists it first to last.
+    pub fn reorder_ddays(&self, ids: &[i64]) -> DbResult<()> {
+        let tx = self.conn.unchecked_transaction()?;
+        for (position, id) in ids.iter().enumerate() {
+            tx.execute("UPDATE ddays SET position=?1 WHERE id=?2", params![position as i64, id])?;
+        }
+        tx.commit()
     }
 
     pub fn delete_dday(&self, id: i64) -> DbResult<()> {
@@ -1236,6 +1266,42 @@ pub(crate) mod tests {
         let fresh = db.save_pomodoro_session(Some(9999), 3000, 4500, 1500, true, "").unwrap();
         assert_ne!(fresh, 9999);
         assert_eq!(db.pomodoro_sessions(0, 10_000).unwrap().len(), 2);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn ddays_keep_their_dragged_order_and_new_ones_go_last() {
+        let (db, path) = temp_db();
+        let add = |title: &str, date: &str| {
+            let dday = DDay {
+                id: 0,
+                title: title.into(),
+                date: d(date),
+                color: 0,
+                image: None,
+                yearly: false,
+                count_from_one: false,
+                shape: "normal".into(),
+                position: 0,
+            };
+            db.save_dday(&dday).unwrap();
+        };
+        add("Exam", "2026-12-01");
+        add("Trip", "2026-11-01");
+        let order = |db: &Db| {
+            let mut list = db.ddays().unwrap();
+            list.sort_by_key(|x| x.position);
+            list.into_iter().map(|x| x.title).collect::<Vec<_>>()
+        };
+        assert_eq!(order(&db), ["Exam", "Trip"]);
+        let ids: Vec<i64> = db.ddays().unwrap().iter().map(|x| x.id).collect(); // by date: Trip, Exam
+        db.reorder_ddays(&ids).unwrap();
+        add("Birthday", "2026-10-20");
+        assert_eq!(order(&db), ["Trip", "Exam", "Birthday"]);
+        // Editing keeps the place.
+        let trip = db.ddays().unwrap().into_iter().find(|x| x.title == "Trip").unwrap();
+        db.save_dday(&DDay { title: "Trip!".into(), ..trip }).unwrap();
+        assert_eq!(order(&db), ["Trip!", "Exam", "Birthday"]);
         let _ = std::fs::remove_file(path);
     }
 

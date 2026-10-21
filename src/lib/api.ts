@@ -78,6 +78,8 @@ export interface DDay {
   count_from_one: boolean;
   /** Card shape on the D-Day page: landscape (`wide`) or portrait (`tall`). */
   shape: DDayShape;
+  /** Place in the custom (dragged) order on the D-Day page; ties go by date. */
+  position: number;
 }
 
 export type DDayShape = 'normal' | 'wide' | 'tall';
@@ -178,6 +180,8 @@ export interface TrpgEntry {
   created_at: number;
   /** Place in the custom (dragged) order of its list; ties are shown A–Z. */
   position: number;
+  /** How many times the user has played from this scenario book (`scenario_book` entries). */
+  play_count: number;
 }
 
 export type BookStatus = 'want' | 'reading' | 'read';
@@ -298,6 +302,7 @@ export const api = {
   ddays: () => invoke<DDay[]>('ddays'),
   saveDday: (dday: DDay) => invoke<void>('save_dday', { dday }),
   deleteDday: (id: number) => invoke<void>('delete_dday', { id }),
+  reorderDdays: (ids: number[]) => invoke<void>('reorder_ddays', { ids }),
   /** Sends raw image bytes; Rust optimizes and stores them and returns the file name. */
   /** `purpose` sets how large the image is kept; stickers keep transparency. */
   importImage: (bytes: Uint8Array, purpose: ImagePurpose = 'cover') =>

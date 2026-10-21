@@ -7,10 +7,12 @@
   import { data, load, openCalendar } from '../lib/state.svelte';
 
   let events = $state<CalEvent[]>([]);
+  /** The month the mini calendar shows (it can be paged with its arrows). */
+  let month = $state(monthStart(today()));
 
   $effect(() => {
     data.version;
-    const start = weekStart(monthStart(today()));
+    const start = weekStart(month);
     load(api.eventsBetween(start, addDays(start, 41)), []).then((e) => (events = e));
   });
 
@@ -24,6 +26,6 @@
     <button class="w-title" onclick={() => openCalendar(today())}><span class="w-icon"><CalendarDays size={15} /></span>{t('w.calendar')}</button>
   </div>
   <div class="w-body">
-    <MiniCalendar selected={today()} onpick={openCalendar} {marks} {events} />
+    <MiniCalendar selected={today()} onpick={openCalendar} {marks} {events} onmonth={(m) => (month = m)} />
   </div>
 </div>

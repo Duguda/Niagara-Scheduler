@@ -27,6 +27,10 @@
   let cursor = $state(ui.calendarFocus ?? today());
   ui.calendarFocus = null;
   let events = $state<CalEvent[]>([]);
+  /** Events for the six weeks the side mini calendar shows, which can differ from the main view. */
+  let miniEvents = $state<CalEvent[]>([]);
+  // Set by the mini calendar as soon as it shows (it follows the selected day).
+  let miniMonth = $state(monthStart(today()));
   let ddays = $state<DDay[]>([]);
   let editing = $state<CalEvent | null>(null);
   let todos = $state<CalTodo[]>([]);
@@ -58,11 +62,19 @@
     return fmtRange(a, b, { month: a.slice(0, 7) === b.slice(0, 7) ? 'long' : 'short', day: 'numeric' });
   });
 
+  $effect(() => {
+    data.version;
+    const start = weekStart(miniMonth);
+    load(api.eventsBetween(start, addDays(start, 41)), []).then((e) => (miniEvents = e));
+  });
+
   /** Events passing the tag filter (all of them when no tag is selected). */
   const shownEvents = $derived(events.filter(matchesTagFilter));
+  const miniShown = $derived(miniEvents.filter(matchesTagFilter));
+  /** Days with something on them, marked with a dot in the mini calendar. */
   const marks = $derived(
     new Set([
-      ...shownEvents.flatMap((e) => { const [a, b] = eventSpan(e); return range(a, diffDays(b, a) + 1); }),
+      ...miniShown.flatMap((e) => { const [a, b] = eventSpan(e); return range(a, diffDays(b, a) + 1); }),
       ...todos.flatMap((x) => (x.todo.done || !x.todo.due ? [] : [x.todo.due])),
     ]),
   );
@@ -156,7 +168,7 @@
 
   <aside class="side">
     <div class="card">
-      <MiniCalendar selected={cursor} onpick={(d) => (cursor = d)} {marks} events={shownEvents} />
+      <MiniCalendar selected={cursor} onpick={(d) => (cursor = d)} {marks} events={miniShown} onmonth={(m) => (miniMonth = m)} />
     </div>
 
     <div class="card agenda">

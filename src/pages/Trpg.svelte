@@ -2,8 +2,8 @@
   // TRPG log: sessions (want to play / played), rule books and scenario books (shelf or list), and a report.
   import { openUrl } from '@tauri-apps/plugin-opener';
   import {
-    ArrowUpDown, BookOpen, ChartPie, ChevronDown, ExternalLink, GripVertical, Library, Link, Pencil, Plus, ScrollText, Search,
-    Sparkles, Swords, Trash, X,
+    ArrowUpDown, BookOpen, ChartPie, ChevronDown, ExternalLink, GripVertical, Library, Link, Minus, Pencil, Plus, Repeat, ScrollText,
+    Search, Sparkles, Swords, Trash, X,
   } from '@lucide/svelte';
   import Modal from '../components/Modal.svelte';
   import ConfirmButton from '../components/ConfirmButton.svelte';
@@ -23,7 +23,7 @@
   import { data, load, mutate, toast } from '../lib/state.svelte';
 
   type Tab = 'sessions' | 'rulebook' | 'scenario_book' | 'report';
-  type Sort = 'date' | 'title';
+  type Sort = 'date' | 'added' | 'title';
   /** How the rule book and scenario book shelves are ordered. */
   type BookSort = 'name' | 'newest' | 'oldest' | 'custom';
   const BOOK_SORTS: { value: BookSort; label: Key }[] = [
@@ -55,7 +55,7 @@
 
   let entries = $state<TrpgEntry[]>([]);
   let tab = $state<Tab>(TABS.some((x) => x.id === prefs.tab) ? prefs.tab! : 'sessions');
-  let sort = $state<Sort>(prefs.sort === 'title' ? 'title' : 'date');
+  let sort = $state<Sort>(prefs.sort === 'title' || prefs.sort === 'added' ? prefs.sort : 'date');
   let bookSort = $state<BookSort>(BOOK_SORTS.some((s) => s.value === prefs.bookSort) ? prefs.bookSort! : 'name');
   /** Folders folded away, as "<kind>:<folder>". */
   let collapsed = $state<string[]>(Array.isArray(prefs.collapsed) ? prefs.collapsed : []);
@@ -82,6 +82,8 @@
   const collator = new Intl.Collator('ko', { numeric: true, sensitivity: 'base' });
   const byTitle = (a: TrpgEntry, b: TrpgEntry) => collator.compare(a.title, b.title);
   const byDate = (a: TrpgEntry, b: TrpgEntry) => (b.date ?? '').localeCompare(a.date ?? '') || b.created_at - a.created_at;
+  /** Most recently added first. */
+  const byAdded = (a: TrpgEntry, b: TrpgEntry) => b.created_at - a.created_at || b.id - a.id;
 
   const matching = $derived.by(() => {
     const q = query.trim().toLowerCase();
@@ -91,9 +93,9 @@
   const of = (kind: TrpgKind) => matching.filter((e) => e.kind === kind);
 
   const wishlist = $derived(
-    of('wishlist').sort(sort === 'title' ? byTitle : (a, b) => b.created_at - a.created_at),
+    of('wishlist').sort(sort === 'title' ? byTitle : byAdded),
   );
-  const played = $derived(of('played').sort(sort === 'title' ? byTitle : byDate));
+  const played = $derived(of('played').sort(sort === 'title' ? byTitle : sort === 'added' ? byAdded : byDate));
 
   /** A column's entries by folder (A–Z), unfiled ones last under "Other". */
   function byFolder(kind: TrpgKind, list: TrpgEntry[]) {
@@ -150,7 +152,7 @@
   function blank(kind: TrpgKind): TrpgEntry {
     return {
       id: 0, kind, title: '', writer: '', system: '', links: [], image: null,
-      date: null, role: '', pair: '', folder: '', memo: '', created_at: 0, position: 0,
+      date: null, role: '', pair: '', folder: '', memo: '', created_at: 0, position: 0, play_count: 0,
     };
   }
 
@@ -170,6 +172,16 @@
     newLink = '';
     customRole = '';
     editing = { ...e, links: [...e.links] };
+  }
+
+  /** Counts one more play from a scenario book. */
+  function playedAgain(e: TrpgEntry) {
+    mutate(api.saveTrpgEntry({ ...e, play_count: e.play_count + 1 }), t('trpg.playedAgainDone', { name: e.title, n: e.play_count + 1 }));
+  }
+
+  const MAX_PLAY_COUNT = 999;
+  function setPlayCount(n: number) {
+    if (editing) editing.play_count = Math.min(MAX_PLAY_COUNT, Math.max(0, Math.round(n) || 0));
   }
 
   /** Moves a wished-for scenario to the played list (it keeps its folder). */
@@ -250,6 +262,7 @@
     openMenu(ev, [
       { label: t('common.edit'), icon: Pencil, action: () => edit(e) },
       ...(e.kind === 'wishlist' ? [{ label: t('trpg.markPlayed'), icon: Swords, action: () => markPlayed(e) }] : []),
+      ...(e.kind === 'scenario_book' ? [{ label: t('trpg.playedAgain'), icon: Repeat, action: () => playedAgain(e) }] : []),
       ...(links.length ? ['separator' as const, ...links] : []),
       'separator',
       { label: t('common.delete'), icon: Trash, danger: true, action: () => remove(e) },
@@ -276,6 +289,7 @@
       {#if tab === 'sessions'}
         <div class="segmented">
           <button class:active={sort === 'date'} onclick={() => (sort = 'date')}>{t('trpg.sortDate')}</button>
+          <button class:active={sort === 'added'} onclick={() => (sort = 'added')}>{t('trpg.sortAdded')}</button>
           <button class:active={sort === 'title'} onclick={() => (sort = 'title')}>{t('trpg.sortTitle')}</button>
         </div>
       {/if}
@@ -331,7 +345,10 @@
           onmenu={entryMenu}
           onreorder={canReorder ? reorderBooks : undefined}
         >
-          {#snippet meta(b)}{[b.system, b.writer].filter(Boolean).join(' · ')}{/snippet}
+          {#snippet meta(b)}
+            {#if b.play_count > 0}<span class="plays" title={t('trpg.playsHint', { n: b.play_count })}><Repeat size={11} /> {t('trpg.playCount', { n: b.play_count })}</span>{/if}
+            {[b.system, b.writer].filter(Boolean).join(' · ')}
+          {/snippet}
           {#snippet trailing(b)}
             {#if b.links.length}<span class="faint small row-links"><ExternalLink size={13} /> {b.links.length}</span>{/if}
           {/snippet}
@@ -475,6 +492,27 @@
         <DateField id="trpg-date" value={editing.date} clearable onchange={(v) => editing && (editing.date = v)} />
       </div>
     {/if}
+    {#if editing.kind === 'scenario_book'}
+      <div class="field">
+        <label for="trpg-plays">{t('trpg.playCountLabel')}</label>
+        <div class="stepper">
+          <button type="button" onclick={() => editing && setPlayCount(editing.play_count - 1)} disabled={editing.play_count <= 0} aria-label={t('pomo.decrease')}><Minus size={14} /></button>
+          <input
+            id="trpg-plays"
+            class="tabular"
+            type="number"
+            inputmode="numeric"
+            min="0"
+            max={MAX_PLAY_COUNT}
+            value={editing.play_count}
+            oninput={(e) => setPlayCount(Number(e.currentTarget.value))}
+          />
+          <span class="unit">{t('trpg.playUnit')}</span>
+          <button type="button" onclick={() => editing && setPlayCount(editing.play_count + 1)} aria-label={t('pomo.increase')}><Plus size={14} /></button>
+        </div>
+        <span class="faint small">{t('trpg.playCountHint')}</span>
+      </div>
+    {/if}
     {#if isBook(editing.kind)}
       <div class="field">
         <span class="label">{t('trpg.cover')}</span>
@@ -511,6 +549,73 @@
 {/if}
 
 <style>
+  .plays {
+    margin-right: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: none;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+  .stepper {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 40px;
+    padding: 0 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+  }
+  .stepper:focus-within {
+    border-color: var(--primary);
+  }
+  .stepper button {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .stepper button:hover:not(:disabled) {
+    background: var(--surface);
+    color: var(--text);
+  }
+  .stepper button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .stepper .unit {
+    margin-right: 4px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .stepper input {
+    width: 44px;
+    border: none;
+    background: none;
+    outline: none;
+    font-size: 15px;
+    font-weight: 700;
+    text-align: center;
+    color: var(--text);
+  }
+  .stepper input::-webkit-inner-spin-button,
+  .stepper input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
   .book-sort {
     width: 190px;
   }

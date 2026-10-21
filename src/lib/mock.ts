@@ -69,9 +69,9 @@ export function installMock() {
     { id: 3, name: 'Health', color: 0x34c38f, category: 'Personal' },
   ];
   const ddays: DDay[] = [
-    { id: 1, title: 'Final exam', date: addDays(t, 12), color: 0xf2668b, image: null, yearly: false, count_from_one: false, shape: 'normal' },
-    { id: 2, title: 'Trip to Jeju', date: addDays(t, 40), color: 0x4aa8ff, image: null, yearly: false, count_from_one: false, shape: 'normal' },
-    { id: 3, title: 'Started new job', date: addDays(t, -100), color: 0x34c38f, image: null, yearly: false, count_from_one: false, shape: 'normal' },
+    { id: 1, title: 'Final exam', date: addDays(t, 12), color: 0xf2668b, image: null, yearly: false, count_from_one: false, shape: 'normal', position: 0 },
+    { id: 2, title: 'Trip to Jeju', date: addDays(t, 40), color: 0x4aa8ff, image: null, yearly: false, count_from_one: false, shape: 'normal', position: 0 },
+    { id: 3, title: 'Started new job', date: addDays(t, -100), color: 0x34c38f, image: null, yearly: false, count_from_one: false, shape: 'normal', position: 0 },
   ];
   const groups: TodoGroup[] = [
     { id: 1, name: 'Work', color: 0x7c74ff },
@@ -159,7 +159,7 @@ export function installMock() {
     { id: 2008, kind: 'rulebook', title: 'Delta Green', writer: 'Arc Dream', system: 'Delta Green', links: [], image: null, date: null, role: '', pair: '', folder: '', memo: '', created_at: now - 86_400 * 70 },
     { id: 2009, kind: 'wishlist', title: '달빛 아래', writer: '노라', system: 'CoC 7th', links: [], image: null, date: null, role: '', pair: '', folder: '', memo: '', created_at: now - 86_400 * 3 },
     { id: 2004, kind: 'wishlist', title: 'Masks of Nyarlathotep', writer: 'Larry DiTillio', system: 'CoC 7th', links: ['https://example.com/masks'], image: null, date: null, role: '', pair: '', folder: '', memo: 'Long campaign', created_at: now - 86_400 * 10 },
-  ] as Omit<TrpgEntry, 'position'>[]).map((e) => ({ ...e, position: 0 }));
+  ] as Omit<TrpgEntry, 'position' | 'play_count'>[]).map((e) => ({ ...e, position: 0, play_count: e.id === 2001 ? 3 : 0 }));
   const book = (id: number, title: string, author: string, status: Book['status'], extra: Partial<Book> = {}): Book => ({
     id, title, author, publisher: '', status, image: null, total_pages: 0, current_page: 0, rating: 0,
     started: null, finished: null, review: '', created_at: now - 86_400 * (100 - id + 3000), ...extra,
@@ -235,7 +235,8 @@ export function installMock() {
       case 'save_tag': { if (!a.tag.id) { tags.push({ ...a.tag, id: nextTag }); return nextTag++; } tags = tags.map((x) => (x.id === a.tag.id ? a.tag : x)); return a.tag.id; }
       case 'delete_tag': tags = tags.filter((x) => x.id !== a.id); for (const e of events) e.tags = e.tags.filter((id) => id !== a.id); return null;
       case 'ddays': return [...ddays].sort((x, y) => x.date.localeCompare(y.date));
-      case 'save_dday': if (a.dday.id) Object.assign(ddays.find((d) => d.id === a.dday.id)!, a.dday); else ddays.push({ ...a.dday, id: nextId++ }); return null;
+      case 'save_dday': if (a.dday.id) Object.assign(ddays.find((d) => d.id === a.dday.id)!, a.dday); else ddays.push({ ...a.dday, id: nextId++, position: Math.max(0, ...ddays.map((d) => d.position)) + 1 }); return null;
+      case 'reorder_ddays': (a.ids as number[]).forEach((id, i) => { const d = ddays.find((x) => x.id === id); if (d) d.position = i; }); return null;
       case 'delete_dday': ddays.splice(ddays.findIndex((d) => d.id === a.id), 1); return null;
       case 'import_image': {
         const w = window as Window & { __noraPreviewImages?: Map<string, string> };

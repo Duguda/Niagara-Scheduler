@@ -150,6 +150,7 @@ fn main() {
             commands::ddays,
             commands::save_dday,
             commands::delete_dday,
+            commands::reorder_ddays,
             commands::import_image,
             commands::remove_unused_images,
             commands::todo_groups,

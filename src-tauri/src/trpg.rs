@@ -43,10 +43,14 @@ pub struct TrpgEntry {
     /// Place in the custom (dragged) order of its list; ties are shown A–Z.
     #[serde(default)]
     pub position: i64,
+    /// How many times the user has played from this scenario book (`scenario_book` entries).
+    #[serde(default)]
+    pub play_count: i64,
 }
 
 impl TrpgEntry {
     pub const KINDS: [&'static str; 4] = ["rulebook", "scenario_book", "played", "wishlist"];
+    pub const MAX_PLAY_COUNT: i64 = 999;
 
     /// Cleans a comma-separated role list: trimmed, no empties or duplicates, sensible lengths.
     pub fn clean_roles(roles: &str) -> String {
@@ -62,7 +66,7 @@ impl TrpgEntry {
     }
 }
 
-const COLUMNS: &str = "id, kind, title, writer, system, links, image, date, role, memo, created_at, pair, folder, position";
+const COLUMNS: &str = "id, kind, title, writer, system, links, image, date, role, memo, created_at, pair, folder, position, play_count";
 
 /// Links are stored one per line, like event links.
 fn links_text(links: &[String]) -> String {
@@ -87,6 +91,7 @@ fn entry_from_row(r: &Row) -> DbResult<TrpgEntry> {
         pair: r.get(11)?,
         folder: r.get(12)?,
         position: r.get(13)?,
+        play_count: r.get(14)?,
     })
 }
 
@@ -105,12 +110,13 @@ impl Db {
             let created = if e.created_at > 0 { e.created_at } else { now_ts() };
             self.conn.execute(
                 // New entries go last in the custom order of their list.
-                "INSERT INTO trpg_entries(kind, title, writer, system, links, image, date, role, memo, created_at, pair, folder, position)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
+                "INSERT INTO trpg_entries(kind, title, writer, system, links, image, date, role, memo, created_at, pair, folder,
+                                          play_count, position)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
                         (SELECT COALESCE(MAX(position), 0) + 1 FROM trpg_entries WHERE kind = ?1))",
                 params![
                     e.kind, e.title, e.writer, e.system, links_text(&e.links), e.image, date, e.role, e.memo, created,
-                    e.pair.trim(), e.folder.trim()
+                    e.pair.trim(), e.folder.trim(), e.play_count
                 ],
             )?;
             Ok(self.conn.last_insert_rowid())
@@ -121,10 +127,10 @@ impl Db {
                    position = CASE WHEN kind = ?1 THEN position
                                    ELSE (SELECT COALESCE(MAX(position), 0) + 1 FROM trpg_entries WHERE kind = ?1) END,
                    kind=?1, title=?2, writer=?3, system=?4, links=?5, image=?6, date=?7, role=?8, memo=?9,
-                   pair=?10, folder=?11 WHERE id=?12",
+                   pair=?10, folder=?11, play_count=?12 WHERE id=?13",
                 params![
                     e.kind, e.title, e.writer, e.system, links_text(&e.links), e.image, date, e.role, e.memo,
-                    e.pair.trim(), e.folder.trim(), e.id
+                    e.pair.trim(), e.folder.trim(), e.play_count, e.id
                 ],
             )?;
             Ok(e.id)
@@ -172,7 +178,19 @@ mod tests {
             memo: String::new(),
             created_at: 0,
             position: 0,
+            play_count: 0,
         }
+    }
+
+    #[test]
+    fn scenario_books_keep_how_many_times_they_were_played() {
+        let (db, path) = temp_db();
+        let id = db.save_trpg_entry(&TrpgEntry { play_count: 2, ..entry("scenario_book", "Doors to Darkness", None) }).unwrap();
+        let stored = db.trpg_entries().unwrap().into_iter().find(|e| e.id == id).unwrap();
+        assert_eq!(stored.play_count, 2);
+        db.save_trpg_entry(&TrpgEntry { play_count: 3, ..stored }).unwrap();
+        assert_eq!(db.trpg_entries().unwrap()[0].play_count, 3);
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

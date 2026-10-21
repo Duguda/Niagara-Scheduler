@@ -11,6 +11,7 @@
     marks = new Set<string>(),
     events = [],
     min,
+    onmonth,
   }: {
     selected: string;
     onpick: (d: string) => void;
@@ -19,6 +20,11 @@
     events?: CalEvent[];
     /** Days before this date cannot be picked. */
     min?: string;
+    /**
+     * Called with the first day of the month on screen (also after the arrows are used), so the
+     * parent can load the events behind `marks` for exactly the days shown.
+     */
+    onmonth?: (month: string) => void;
   } = $props();
 
   let shownOverride = $state<string | null>(null);
@@ -30,6 +36,10 @@
     // Follow the selection when it moves to another month.
     selected;
     shownOverride = null;
+  });
+
+  $effect(() => {
+    onmonth?.(shown);
   });
 </script>
 
@@ -114,15 +124,21 @@
     background: var(--primary);
     color: var(--primary-text);
   }
+  /* A dot under days with events, in the accent color so it stands out at a glance. */
   .mark {
     position: absolute;
     bottom: 3px;
     left: 50%;
-    width: 4px;
-    height: 4px;
-    margin-left: -2px;
+    width: 5px;
+    height: 5px;
+    margin-left: -2.5px;
     border-radius: 50%;
-    background: currentColor;
-    opacity: 0.6;
+    background: var(--primary);
+  }
+  .day.other .mark {
+    opacity: 0.45;
+  }
+  .day.selected .mark {
+    background: var(--primary-text);
   }
 </style>

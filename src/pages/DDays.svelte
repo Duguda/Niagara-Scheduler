@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Pencil, Plus, Repeat, Target } from '@lucide/svelte';
+  import { GripVertical, Pencil, Plus, Repeat, Target } from '@lucide/svelte';
   import Modal from '../components/Modal.svelte';
   import ColorPicker from '../components/ColorPicker.svelte';
   import ConfirmButton from '../components/ConfirmButton.svelte';
@@ -9,7 +9,7 @@
   import { api, type DDay, type DDayShape } from '../lib/api';
   import { PALETTE, hex } from '../lib/colors';
   import { byDdayTarget, ddayDays, ddayLabel, ddayTarget, ddayUpcoming, fmt, today } from '../lib/dates';
-  import { data, load, mutate } from '../lib/state.svelte';
+  import { data, load, mutate, toast } from '../lib/state.svelte';
   import { t } from '../lib/i18n.svelte';
 
   const SHAPES: { id: DDayShape; label: () => string }[] = [
@@ -22,6 +22,26 @@
   let editing = $state<DDay | null>(null);
   let error = $state('');
 
+  type Sort = 'date' | 'custom';
+  // A per-viewer convenience, remembered in this browser only.
+  const SORT_KEY = 'nora.ddays.sort';
+  function readSort(): Sort {
+    try {
+      return localStorage.getItem(SORT_KEY) === 'custom' ? 'custom' : 'date';
+    } catch {
+      return 'date';
+    }
+  }
+  let sort = $state<Sort>(readSort());
+  $effect(() => {
+    const value = sort;
+    try {
+      localStorage.setItem(SORT_KEY, value);
+    } catch {
+      /* not remembered; fine */
+    }
+  });
+
   $effect(() => {
     data.version;
     load(api.ddays(), []).then((d) => (ddays = d));
@@ -30,6 +50,47 @@
   const todayStr = $derived(today());
   const upcoming = $derived(byDdayTarget(ddays.filter((d) => ddayUpcoming(d, todayStr)), todayStr));
   const past = $derived(ddays.filter((d) => !ddayUpcoming(d, todayStr)).reverse());
+  /** Custom order: every D-Day in the order the user dragged them into (new ones last). */
+  const custom = $derived([...ddays].sort((a, b) => a.position - b.position || a.date.localeCompare(b.date) || a.id - b.id));
+
+  // ---- drag a card to reorder (custom order only). Cards move live while dragging.
+  let dragOrder = $state<DDay[] | null>(null);
+  let dragId = $state<number | null>(null);
+  let dragChanged = false;
+  const shown = $derived(dragOrder ?? custom);
+
+  function dragStart(e: DragEvent, d: DDay) {
+    e.dataTransfer?.setData('application/x-nora-dday', String(d.id));
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+    dragId = d.id;
+    dragOrder = [...custom];
+    dragChanged = false;
+  }
+
+  function dragOver(e: DragEvent, target: DDay) {
+    if (dragId === null || !dragOrder) return;
+    e.preventDefault();
+    if (target.id === dragId) return;
+    const from = dragOrder.findIndex((x) => x.id === dragId);
+    const to = dragOrder.findIndex((x) => x.id === target.id);
+    if (from < 0 || to < 0) return;
+    const next = [...dragOrder];
+    next.splice(to, 0, ...next.splice(from, 1));
+    dragOrder = next;
+    dragChanged = true;
+  }
+
+  /** Saves the new order. Shown right away; the database catches up in the background. */
+  function dragEnd() {
+    if (dragOrder && dragChanged) {
+      const ids = dragOrder.map((x) => x.id);
+      const place = new Map(ids.map((id, i) => [id, i]));
+      ddays = ddays.map((x) => ({ ...x, position: place.get(x.id) ?? x.position }));
+      api.reorderDdays(ids).catch((err) => toast(String(err), 'error'));
+    }
+    dragId = null;
+    dragOrder = null;
+  }
 
   /** "Tomorrow", "3 days ago"…; empty for "Day N", which the D+N label already says. */
   function relative(d: DDay) {
@@ -43,7 +104,7 @@
 
   function create() {
     error = '';
-    editing = { id: 0, title: '', date: todayStr, color: PALETTE[(ddays.length + 4) % PALETTE.length].value, image: null, yearly: false, count_from_one: false, shape: 'normal' };
+    editing = { id: 0, title: '', date: todayStr, color: PALETTE[(ddays.length + 4) % PALETTE.length].value, image: null, yearly: false, count_from_one: false, shape: 'normal', position: 0 };
   }
 
   /** Closing without saving: drop any photo that was uploaded but not kept. */
@@ -77,6 +138,12 @@
       <p class="sub">{t('dd.subtitle')}</p>
     </div>
     <span class="spacer"></span>
+    {#if ddays.length > 1}
+      <div class="segmented" role="group" aria-label={t('dd.sort')}>
+        <button class:active={sort === 'date'} onclick={() => (sort = 'date')}>{t('dd.sortDate')}</button>
+        <button class:active={sort === 'custom'} onclick={() => (sort = 'custom')}>{t('dd.sortCustom')}</button>
+      </div>
+    {/if}
     <button class="btn primary" onclick={create}><Plus size={17} /> {t('dd.new')}</button>
   </div>
 
@@ -89,21 +156,40 @@
     </div>
   {/if}
 
-  {@render section(t('dd.comingUp'), upcoming)}
-  {@render section(t('dd.past'), past)}
+  {#if sort === 'custom' && ddays.length > 1}
+    <p class="reorder-hint faint small"><GripVertical size={14} /> {t('dd.customHint')}</p>
+    <div class="cards ordered">
+      {#each shown as d (d.id)}{@render card(d, true)}{/each}
+    </div>
+  {:else}
+    {@render section(t('dd.comingUp'), upcoming)}
+    {@render section(t('dd.past'), past)}
+  {/if}
 </div>
 
 {#snippet section(heading: string, list: DDay[])}
   {#if list.length}
     <h3 class="section">{heading}</h3>
     <div class="cards">
-      {#each list as d (d.id)}
+      {#each list as d (d.id)}{@render card(d, false)}{/each}
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet card(d: DDay, draggable: boolean)}
         {@const rel = [relative(d), yearsOf(d) ? t('dd.nthYear', { n: yearsOf(d) }) : ''].filter(Boolean).join(' · ')}
         <button
           class="dd-card {d.shape}"
           class:photo={!!d.image}
+          class:dragging={dragId === d.id}
+          class:grab={draggable}
           style:--c={hex(d.color)}
           onclick={() => { error = ''; editing = { ...d }; }}
+          draggable={draggable ? 'true' : undefined}
+          ondragstart={draggable ? (e) => dragStart(e, d) : undefined}
+          ondragover={draggable ? (e) => dragOver(e, d) : undefined}
+          ondrop={draggable ? (e) => e.preventDefault() : undefined}
+          ondragend={draggable ? dragEnd : undefined}
         >
           <span class="edit"><Pencil size={14} /></span>
           {#if d.image}
@@ -119,9 +205,6 @@
             {#if rel}<span class="rel">{rel}</span>{/if}
           {/if}
         </button>
-      {/each}
-    </div>
-  {/if}
 {/snippet}
 
 {#snippet date(d: DDay)}
@@ -201,6 +284,22 @@
   .section {
     margin: 8px 0 12px;
     color: var(--muted);
+  }
+  /* Custom order: keep cards in exactly the dragged order (no gap filling). */
+  .cards.ordered {
+    grid-auto-flow: row;
+  }
+  .reorder-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 12px;
+  }
+  .dd-card.grab {
+    cursor: grab;
+  }
+  .dd-card.dragging {
+    opacity: 0.4;
   }
   .cards {
     display: grid;

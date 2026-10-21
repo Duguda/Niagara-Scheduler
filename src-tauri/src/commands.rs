@@ -134,6 +134,11 @@ pub fn save_dday(state: State<AppState>, mut dday: DDay) -> CmdResult<()> {
 }
 
 #[tauri::command]
+pub fn reorder_ddays(state: State<AppState>, ids: Vec<i64>) -> CmdResult<()> {
+    with_db(&state, |db| db.reorder_ddays(&ids))
+}
+
+#[tauri::command]
 pub fn delete_dday(state: State<AppState>, id: i64) -> CmdResult<()> {
     with_db(&state, |db| db.delete_dday(id))?;
     remove_unused_images(state)
@@ -404,6 +409,8 @@ pub fn save_trpg_entry(state: State<AppState>, entry: TrpgEntry) -> CmdResult<i6
         system: entry.system.trim().into(),
         memo: entry.memo.trim().into(),
         image: entry.image.filter(|name| crate::images::is_safe_name(name)),
+        // Only scenario books keep a play count.
+        play_count: if entry.kind == "scenario_book" { entry.play_count.clamp(0, TrpgEntry::MAX_PLAY_COUNT) } else { 0 },
         ..entry
     };
     let id = with_db(&state, |db| db.save_trpg_entry(&entry))?;

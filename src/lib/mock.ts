@@ -2,7 +2,7 @@
 // Loaded from main.ts only when `import.meta.env.DEV` and Tauri is absent.
 // Supports `?page=todos&theme=dark` to open a specific page.
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
-import type { Activity, Bookmark, BookmarkFolder, CalEvent, DDay, Expense, Meal, Memo, MemoGroup, Workout, PomodoroSession, Tag, Todo, TodoGroup, TrpgEntry, Book } from './api';
+import type { Activity, Bookmark, BookmarkFolder, CalEvent, DDay, Commission, CommissionClient, Expense, Meal, Memo, MemoGroup, Workout, PomodoroSession, Tag, Todo, TodoGroup, TrpgEntry, Book } from './api';
 import { addDays, addMinutes, addMonths, dayStartTs, diffDays, eventSpan, parseYmd, timeOf, today, toDateTime } from './dates';
 
 /** Mirrors src-tauri/src/recurrence.rs (dev preview only). */
@@ -134,6 +134,21 @@ export function installMock() {
       expenses.push({ id: 1000 + d * 10 + k, amount: base + ((d * 7 + k * 13) % 9) * 500, category: c, date: day, note: k === 0 && c === 'food' ? 'Lunch' : '' });
     }
   }
+  const clients: CommissionClient[] = [
+    { id: 8000, name: '하루', contact: '@haru_draws', memo: '단골, 수정 1회 무료' },
+    { id: 8001, name: 'Mido', contact: 'mido@example.com', memo: '' },
+  ];
+  const commission = (id: number, title: string, client_id: number | null, kind: string, status: Commission['status'], price: number, extra: Partial<Commission> = {}): Commission => ({
+    id, title, client_id, kind, status, price, payments: [], deadline: null, revisions: 0, links: [], image: null, memo: '',
+    created_at: now - 86_400 * (9000 - id), delivered: null, ...extra,
+  });
+  const commissions: Commission[] = [
+    commission(8100, '하루님 자캐 흉상', 8000, '흉상', 'working', 60000, { deadline: addDays(t, 3), payments: [{ amount: 30000, date: addDays(t, -6) }], revisions: 1 }),
+    commission(8101, 'Mido SD 2인', 8001, 'SD', 'review', 45000, { deadline: addDays(t, -1), payments: [{ amount: 45000, date: addDays(t, -10) }], revisions: 2 }),
+    commission(8102, '전신 일러스트 문의', null, '전신', 'inquiry', 0, { memo: '배경 포함 견적 요청' }),
+    commission(8103, '하루님 로고', 8000, '로고', 'queued', 80000, { deadline: addDays(t, 14) }),
+    commission(8104, '두상 3인', 8001, '두상', 'done', 36000, { payments: [{ amount: 36000, date: addDays(t, -2) }], delivered: addDays(t, -2) }),
+  ];
   const meals: Meal[] = [];
   const workouts: Workout[] = [];
   const foods: [Meal['slot'], string, number][] = [
@@ -324,6 +339,22 @@ export function installMock() {
         expenses.push({ ...a.expense, id: nextId }); return nextId++;
       }
       case 'delete_expense': { const i = expenses.findIndex((e) => e.id === a.id); return i < 0 ? null : expenses.splice(i, 1)[0]; }
+      case 'commissions': return [...commissions].sort((x, y) => y.created_at - x.created_at);
+      case 'save_commission': {
+        const c = { ...a.commission, delivered: a.commission.status === 'done' ? a.commission.delivered ?? today() : null };
+        if (c.id) { Object.assign(commissions.find((x) => x.id === c.id)!, c); return c.id; }
+        commissions.push({ ...c, id: nextId, created_at: c.created_at || Math.floor(Date.now() / 1000) }); return nextId++;
+      }
+      case 'delete_commission': { const i = commissions.findIndex((x) => x.id === a.id); return i < 0 ? null : commissions.splice(i, 1)[0]; }
+      case 'commission_clients': return [...clients].sort((x, y) => x.name.localeCompare(y.name));
+      case 'save_commission_client': {
+        if (a.client.id) { Object.assign(clients.find((x) => x.id === a.client.id)!, a.client); return a.client.id; }
+        clients.push({ ...a.client, id: nextId }); return nextId++;
+      }
+      case 'delete_commission_client': {
+        commissions.forEach((x) => x.client_id === a.id && (x.client_id = null));
+        clients.splice(clients.findIndex((x) => x.id === a.id), 1); return null;
+      }
       case 'meals_between': return meals.filter((m) => m.date >= a.from && m.date <= a.to).sort((x, y) => x.date.localeCompare(y.date) || x.id - y.id);
       case 'save_meal': {
         if (a.meal.id) { Object.assign(meals.find((m) => m.id === a.meal.id)!, a.meal); return a.meal.id; }
@@ -355,7 +386,7 @@ export function installMock() {
       case 'export_data':
       case 'inspect_backup':
         return { format: 1, app_version: '0.1.0', exported_at: now - 86_400 * 3,
-          counts: { events: events.length, todos: todos.length, memos: memos.length, ddays: ddays.length, bookmarks: bookmarks.length, expenses: expenses.length, trpg: trpg.length, books: books.length, meals: meals.length, workouts: workouts.length, images: 2 } };
+          counts: { events: events.length, todos: todos.length, memos: memos.length, ddays: ddays.length, bookmarks: bookmarks.length, expenses: expenses.length, trpg: trpg.length, books: books.length, meals: meals.length, workouts: workouts.length, commissions: commissions.length, images: 2 } };
       case 'import_data':
       case 'reset_all_data':
         return null;

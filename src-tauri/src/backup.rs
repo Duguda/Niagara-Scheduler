@@ -46,6 +46,9 @@ pub struct Counts {
     pub meals: u64,
     #[serde(default)]
     pub workouts: u64,
+    /// Missing in backups made before the commission manager existed.
+    #[serde(default)]
+    pub commissions: u64,
     pub images: u64,
 }
 
@@ -87,6 +90,7 @@ impl Db {
             books: count("books")?,
             meals: count("meals")?,
             workouts: count("workouts")?,
+            commissions: count("commissions")?,
             images: 0,
         })
     }

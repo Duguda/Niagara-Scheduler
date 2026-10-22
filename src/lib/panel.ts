@@ -36,7 +36,7 @@ export const panelApi = {
  * Overview tile, so neither is offered in the panel. */
 export const PANEL_WIDGETS: WidgetId[] = [
   'agenda', 'todos', 'calendar', 'ddays', 'dday', 'greeting', 'memos', 'working', 'weekChart', 'progress',
-  'bookmarks', 'expenses', 'health',
+  'bookmarks', 'expenses', 'health', 'commissions',
 ];
 export const DEFAULT_PANEL_WIDGETS: WidgetId[] = ['agenda', 'todos', 'calendar'];
 const WIDGETS_SETTING = 'panel.widgets';

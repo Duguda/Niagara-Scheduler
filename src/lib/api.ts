@@ -131,6 +131,44 @@ export interface Expense {
   note: string;
 }
 
+export type CommissionStatus = 'inquiry' | 'queued' | 'working' | 'review' | 'done';
+
+export interface CommissionPayment {
+  /** In the currency chosen in the expense settings. */
+  amount: number;
+  date: DateStr;
+}
+
+export interface Commission {
+  id: number;
+  title: string;
+  client_id: number | null;
+  /** What kind of piece, e.g. "흉상", "SD"; free text. */
+  kind: string;
+  status: CommissionStatus;
+  price: number;
+  /** Money received so far (deposit, balance…), oldest first. */
+  payments: CommissionPayment[];
+  deadline: DateStr | null;
+  /** Revisions done so far. */
+  revisions: number;
+  links: string[];
+  /** Finished piece or reference image, see lib/images.ts. */
+  image: string | null;
+  memo: string;
+  created_at: number;
+  /** Set when moved to "done". */
+  delivered: DateStr | null;
+}
+
+export interface CommissionClient {
+  id: number;
+  name: string;
+  /** How to reach them (an X handle, e-mail…); free text. */
+  contact: string;
+  memo: string;
+}
+
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 export interface Meal {
@@ -211,7 +249,7 @@ export interface BackupManifest {
   format: number;
   app_version: string;
   exported_at: number;
-  counts: { events: number; todos: number; memos: number; ddays: number; bookmarks: number; expenses: number; trpg?: number; books?: number; meals?: number; workouts?: number; images: number };
+  counts: { events: number; todos: number; memos: number; ddays: number; bookmarks: number; expenses: number; trpg?: number; books?: number; meals?: number; workouts?: number; commissions?: number; images: number };
 }
 
 export interface Memo {
@@ -332,6 +370,13 @@ export const api = {
   expensesBetween: (from: DateStr, to: DateStr) => invoke<Expense[]>('expenses_between', { from, to }),
   saveExpense: (expense: Expense) => invoke<number>('save_expense', { expense }),
   deleteExpense: (id: number) => invoke<Expense | null>('delete_expense', { id }),
+
+  commissions: () => invoke<Commission[]>('commissions'),
+  saveCommission: (commission: Commission) => invoke<number>('save_commission', { commission }),
+  deleteCommission: (id: number) => invoke<Commission | null>('delete_commission', { id }),
+  commissionClients: () => invoke<CommissionClient[]>('commission_clients'),
+  saveCommissionClient: (client: CommissionClient) => invoke<number>('save_commission_client', { client }),
+  deleteCommissionClient: (id: number) => invoke<void>('delete_commission_client', { id }),
 
   mealsBetween: (from: DateStr, to: DateStr) => invoke<Meal[]>('meals_between', { from, to }),
   saveMeal: (meal: Meal) => invoke<number>('save_meal', { meal }),

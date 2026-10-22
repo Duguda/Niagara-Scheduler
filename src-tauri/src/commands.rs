@@ -8,6 +8,7 @@ use tauri::ipc::{InvokeBody, Request};
 use crate::AppState;
 use crate::backup::{self, Manifest};
 use crate::bookmarks::{Bookmark, BookmarkFolder};
+use crate::commissions::{Commission, CommissionClient};
 use crate::expenses::Expense;
 use crate::health::{self, Meal, Workout};
 use crate::db::{ActivitySummary, Activity, DDay, Event, Memo, MemoGroup, PomodoroSession, Scope, Tag, Todo, TodoGroup};
@@ -484,6 +485,73 @@ pub fn save_expense(state: State<AppState>, expense: Expense) -> CmdResult<i64> 
 #[tauri::command]
 pub fn delete_expense(state: State<AppState>, id: i64) -> CmdResult<Option<Expense>> {
     with_db(&state, |db| db.delete_expense(id))
+}
+
+// ---- commissions ----------------------------------------------------------------
+
+#[tauri::command]
+pub fn commissions(state: State<AppState>) -> CmdResult<Vec<Commission>> {
+    with_db(&state, |db| db.commissions())
+}
+
+#[tauri::command]
+pub fn save_commission(state: State<AppState>, commission: Commission) -> CmdResult<i64> {
+    let title = commission.title.trim();
+    if title.is_empty() {
+        return Err("title required".into());
+    }
+    if !Commission::STATUSES.contains(&commission.status.as_str()) {
+        return Err("invalid commission".into());
+    }
+    let money = |n: f64| if n.is_finite() && n > 0.0 { n } else { 0.0 };
+    let commission = Commission {
+        title: title.into(),
+        kind: commission.kind.trim().chars().take(40).collect(),
+        memo: commission.memo.trim().into(),
+        price: money(commission.price),
+        payments: commission
+            .payments
+            .into_iter()
+            .filter(|p| money(p.amount) > 0.0)
+            .collect(),
+        revisions: commission.revisions.clamp(0, 999),
+        image: commission.image.filter(|name| crate::images::is_safe_name(name)),
+        ..commission
+    };
+    let id = with_db(&state, |db| db.save_commission(&commission))?;
+    // A replaced or removed image is no longer referenced: delete the file.
+    remove_unused_images(state)?;
+    Ok(id)
+}
+
+#[tauri::command]
+pub fn delete_commission(state: State<AppState>, id: i64) -> CmdResult<Option<Commission>> {
+    with_db(&state, |db| db.delete_commission(id))
+}
+
+#[tauri::command]
+pub fn commission_clients(state: State<AppState>) -> CmdResult<Vec<CommissionClient>> {
+    with_db(&state, |db| db.commission_clients())
+}
+
+#[tauri::command]
+pub fn save_commission_client(state: State<AppState>, client: CommissionClient) -> CmdResult<i64> {
+    let name = client.name.trim();
+    if name.is_empty() {
+        return Err("name required".into());
+    }
+    let client = CommissionClient {
+        name: name.chars().take(60).collect(),
+        contact: client.contact.trim().into(),
+        memo: client.memo.trim().into(),
+        ..client
+    };
+    with_db(&state, |db| db.save_commission_client(&client))
+}
+
+#[tauri::command]
+pub fn delete_commission_client(state: State<AppState>, id: i64) -> CmdResult<()> {
+    with_db(&state, |db| db.delete_commission_client(id))
 }
 
 // ---- diet and exercise -----------------------------------------------------------

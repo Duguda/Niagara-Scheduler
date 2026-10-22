@@ -4,7 +4,7 @@
   import MonthView from './MonthView.svelte';
   import TimeGrid from './TimeGrid.svelte';
   import EventModal from './EventModal.svelte';
-  import { api, type CalEvent, type DDay } from '../lib/api';
+  import { api, type CalEvent, type Commission, type DDay } from '../lib/api';
   import { DEFAULT_COLOR, hex, textOn } from '../lib/colors';
   import {
     addDays, addMonths, byDdayTarget, covers, ddayLabel, ddayOn, ddayUpcoming, diffDays, eventSpan, fmt, fmtRange, isAllDayLane, monthStart, pad, range, timeOf,
@@ -19,6 +19,7 @@
   import { eventColor, groupedTags, matchesTagFilter, setTagFilter, tagStore, tagsOf, toggleTagFilter } from '../lib/tags.svelte';
   import TagManager from '../components/TagManager.svelte';
   import TodoChip from '../components/TodoChip.svelte';
+  import DeadlineChip from '../components/DeadlineChip.svelte';
   import { loadCalendarTodos } from '../lib/calendarTodos';
   import type { CalTodo } from '../lib/lanes';
 
@@ -34,6 +35,8 @@
   let ddays = $state<DDay[]>([]);
   let editing = $state<CalEvent | null>(null);
   let todos = $state<CalTodo[]>([]);
+  /** Commissions not delivered yet that have a deadline. */
+  let deadlines = $state<Commission[]>([]);
 
   const visible = $derived.by((): [string, string] => {
     if (view === 'month') {
@@ -53,6 +56,7 @@
     load(api.eventsBetween(from, to), []).then((e) => (events = e));
     load(api.ddays(), []).then((d) => (ddays = d));
     loadCalendarTodos().then((x) => (todos = x));
+    load(api.commissions(), []).then((c) => (deadlines = c.filter((x) => x.deadline && x.status !== 'done')));
   });
 
   const title = $derived.by(() => {
@@ -76,9 +80,11 @@
     new Set([
       ...miniShown.flatMap((e) => { const [a, b] = eventSpan(e); return range(a, diffDays(b, a) + 1); }),
       ...todos.flatMap((x) => (x.todo.done || !x.todo.due ? [] : [x.todo.due])),
+      ...deadlines.map((c) => c.deadline!),
     ]),
   );
   const agendaTodos = $derived(todos.filter((x) => x.todo.due === cursor));
+  const agendaDeadlines = $derived(deadlines.filter((c) => c.deadline === cursor));
   const agenda = $derived(sortDayEvents(shownEvents.filter((e) => covers(e, cursor))));
   let managingTags = $state(false);
   const agendaDdays = $derived(ddays.filter((d) => ddayOn(d, cursor)));
@@ -149,13 +155,14 @@
   <div class="main">
     <div class="view">
       {#if view === 'month'}
-        <MonthView {cursor} events={shownEvents} {ddays} {todos} onopen={(e) => (editing = e)} onnew={(d) => newEvent(d)} onday={openDay} onselect={(d) => (cursor = d)} onrange={(a, b) => newRange(a, b)} />
+        <MonthView {cursor} events={shownEvents} {ddays} {todos} {deadlines} onopen={(e) => (editing = e)} onnew={(d) => newEvent(d)} onday={openDay} onselect={(d) => (cursor = d)} onrange={(a, b) => newRange(a, b)} />
       {:else}
         <TimeGrid
           days={view === 'week' ? range(weekStart(cursor), 7) : [cursor]}
           events={shownEvents}
           {ddays}
           {todos}
+          {deadlines}
           onopen={(e) => (editing = e)}
           onnew={(d, m) => newEvent(d, m)}
           onday={openDay}
@@ -194,7 +201,7 @@
           </span>
         </button>
       {:else}
-        {#if agendaDdays.length === 0 && agendaTodos.length === 0}
+        {#if agendaDdays.length === 0 && agendaTodos.length === 0 && agendaDeadlines.length === 0}
           <div class="free">
             <span class="leaf"><Leaf size={22} /></span>
             <span class="muted">{t('cal.nothingPlanned')}</span>
@@ -205,6 +212,10 @@
       {#if agendaTodos.length}
         <div class="faint small todo-head">{t('nav.todos')}</div>
         {#each agendaTodos as item (item.todo.id)}<TodoChip {item} />{/each}
+      {/if}
+      {#if agendaDeadlines.length}
+        <div class="faint small todo-head">{t('cal.deadlines')}</div>
+        {#each agendaDeadlines as c (c.id)}<DeadlineChip commission={c} />{/each}
       {/if}
     </div>
 

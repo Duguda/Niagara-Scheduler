@@ -1,7 +1,7 @@
 // Overview dashboard: which tiles are shown, in what order and size.
 import type { Component } from 'svelte';
 import {
-  Activity, Bookmark, CalendarCheck, CalendarDays, CalendarHeart, ChartColumn, Hand, ListTodo, NotebookPen, Salad, Target, Timer,
+  Activity, Bookmark, Brush, CalendarCheck, CalendarDays, CalendarHeart, ChartColumn, Hand, ListTodo, NotebookPen, Salad, Target, Timer,
   Image as ImageIcon, Trophy, Wallet,
 } from '@lucide/svelte';
 import { api } from './api';
@@ -11,7 +11,7 @@ import type { Key } from './i18n.svelte';
 export type TileSize = 'sm' | 'wide' | 'tall' | 'large';
 export type WidgetId =
   | 'greeting' | 'agenda' | 'calendar' | 'todos' | 'ddays' | 'dday' | 'pomodoro' | 'working' | 'weekChart' | 'progress'
-  | 'memos' | 'bookmarks' | 'expenses' | 'health' | 'image';
+  | 'memos' | 'bookmarks' | 'expenses' | 'commissions' | 'health' | 'image';
 
 export interface Tile {
   /** Unique per tile, so the same widget can appear more than once. */
@@ -42,6 +42,7 @@ export const WIDGETS: Record<WidgetId, { name: Key; desc: Key; icon: IconCompone
   bookmarks: { name: 'w.bookmarks', desc: 'w.bookmarks.desc', icon: Bookmark, defaultSize: 'tall' },
   expenses: { name: 'w.expenses', desc: 'w.expenses.desc', icon: Wallet, defaultSize: 'sm' },
   health: { name: 'w.health', desc: 'w.health.desc', icon: Salad, defaultSize: 'sm' },
+  commissions: { name: 'w.commissions', desc: 'w.commissions.desc', icon: Brush, defaultSize: 'sm' },
   image: { name: 'w.image', desc: 'w.image.desc', icon: ImageIcon, defaultSize: 'sm', multiple: true },
 };
 

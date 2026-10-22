@@ -1,6 +1,6 @@
 // Lays out calendar items over a row of consecutive days (a week in the month view, the
 // all-day row in the week view) so an event covering several days is one continuous bar.
-import type { CalEvent, DDay, Todo } from './api';
+import type { CalEvent, Commission, DDay, Todo } from './api';
 import { ddayOn, diffDays, eventSpan, isAllDayLane } from './dates';
 
 /** A todo shown on its due day, in its group's color. */
@@ -13,12 +13,12 @@ type Item = {
   /** The event continues from before / past the end of the row. */
   fromPrev: boolean;
   toNext: boolean;
-} & ({ kind: 'dday'; d: DDay } | { kind: 'event'; e: CalEvent } | { kind: 'todo'; t: CalTodo });
+} & ({ kind: 'dday'; d: DDay } | { kind: 'event'; e: CalEvent } | { kind: 'todo'; t: CalTodo } | { kind: 'deadline'; c: Commission });
 
 /** An item placed in the row; `lane` is the row inside the day cells. */
 export type Placed = Item & { lane: number };
 
-/** Places D-Days, events and todos (those touching `days`) into the lowest free lanes. */
+/** Places D-Days, events, todos and commission deadlines (those touching `days`) into the lowest free lanes. */
 export function layoutLanes(
   days: string[],
   ddays: DDay[],
@@ -26,6 +26,8 @@ export function layoutLanes(
   todos: CalTodo[] = [],
   /** Put single-day all-day events after timed ones (multi-day bars stay on top). */
   allDayLast = false,
+  /** Commissions not delivered yet, shown on their deadline. */
+  deadlines: Commission[] = [],
 ): { placed: Placed[]; lanesPerDay: number[] } {
   const first = days[0];
   const last = days[days.length - 1];
@@ -49,11 +51,17 @@ export function layoutLanes(
       items.push({ kind: 'todo', t, col: diffDays(due, first), span: 1, fromPrev: false, toNext: false });
     }
   }
+  for (const c of deadlines) {
+    const due = c.deadline;
+    if (due && due >= first && due <= last) {
+      items.push({ kind: 'deadline', c, col: diffDays(due, first), span: 1, fromPrev: false, toNext: false });
+    }
+  }
   // Earlier and longer first, so bars stack the way people expect: D-Days and multi-day bars on top,
   // then timed events, single-day all-day events (above or below the timed ones), and todos last.
   const rank = (i: Item) => {
     if (i.kind === 'dday') return 0;
-    if (i.kind === 'todo') return 4;
+    if (i.kind === 'todo' || i.kind === 'deadline') return 4;
     const [a, b] = eventSpan(i.e);
     if (a !== b) return 1;
     return isAllDayLane(i.e) ? (allDayLast ? 3 : 1) : 2;

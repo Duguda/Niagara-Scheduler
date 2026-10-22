@@ -4,10 +4,11 @@
   import { eventMenu, moveEventWithUndo, pasteAsEvent, pointer, slotMenu } from '../lib/clipboard.svelte';
   import { eventHover, hideHoverCard } from '../lib/hovercard.svelte';
   import { isSecondaryClick, openMenu } from '../lib/menu.svelte';
-  import type { CalEvent, DDay } from '../lib/api';
+  import type { CalEvent, Commission, DDay } from '../lib/api';
   import { hex, textOn } from '../lib/colors';
   import { layoutLanes, type CalTodo } from '../lib/lanes';
   import TodoChip from '../components/TodoChip.svelte';
+  import DeadlineChip from '../components/DeadlineChip.svelte';
   import TagDots from '../components/TagDots.svelte';
   import { eventColor } from '../lib/tags.svelte';
   import {
@@ -20,6 +21,7 @@
     events,
     ddays,
     todos = [],
+    deadlines = [],
     onopen,
     onnew,
     onday,
@@ -30,6 +32,8 @@
     ddays: DDay[];
     /** Todos with a due date, shown in the all-day row. */
     todos?: CalTodo[];
+    /** Commissions not delivered yet, shown on their deadline. */
+    deadlines?: Commission[];
     onopen: (e: CalEvent) => void;
     onnew: (day: string, minutes: number) => void;
     onday: (day: string) => void;
@@ -76,7 +80,7 @@
   });
 
   // All-day and multi-day events run as continuous bars across the days they cover.
-  const lane = $derived(layoutLanes(days, ddays, events.filter(isAllDayLane), todos));
+  const lane = $derived(layoutLanes(days, ddays, events.filter(isAllDayLane), todos, false, deadlines));
   const laneRows = $derived(Math.max(1, ...lane.lanesPerDay));
 
   function timedFor(day: string) {
@@ -216,6 +220,8 @@
         </div>
       {:else if b.kind === 'todo'}
         <TodoChip item={b.t} compact style="grid-column: {b.col + 2} / span 1; grid-row: {b.lane + 1}" />
+      {:else if b.kind === 'deadline'}
+        <DeadlineChip commission={b.c} compact style="grid-column: {b.col + 2} / span 1; grid-row: {b.lane + 1}" />
       {:else}
         {@const e = b.e}
         <button

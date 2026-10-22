@@ -194,6 +194,30 @@ CREATE TABLE IF NOT EXISTS workouts (
 );
 CREATE INDEX IF NOT EXISTS idx_workouts_date ON workouts(date);
 
+CREATE TABLE IF NOT EXISTS commission_clients (
+    id      INTEGER PRIMARY KEY,
+    name    TEXT    NOT NULL,
+    contact TEXT    NOT NULL DEFAULT '',
+    memo    TEXT    NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS commissions (
+    id         INTEGER PRIMARY KEY,
+    title      TEXT    NOT NULL,
+    client_id  INTEGER REFERENCES commission_clients(id) ON DELETE SET NULL,
+    kind       TEXT    NOT NULL DEFAULT '',
+    status     TEXT    NOT NULL,
+    price      REAL    NOT NULL DEFAULT 0,
+    payments   TEXT    NOT NULL DEFAULT '[]',
+    deadline   TEXT,
+    revisions  INTEGER NOT NULL DEFAULT 0,
+    links      TEXT    NOT NULL DEFAULT '',
+    image      TEXT,
+    memo       TEXT    NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    delivered  TEXT
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -461,7 +485,7 @@ fn todo_from_row(r: &Row) -> DbResult<Todo> {
 }
 
 pub struct Db {
-    /// Shared with the `impl Db` blocks in `bookmarks.rs`, `expenses.rs`, `health.rs`, `trpg.rs` and `reading.rs`.
+    /// Shared with the `impl Db` blocks in `bookmarks.rs`, `expenses.rs`, `health.rs`, `trpg.rs`, `reading.rs` and `commissions.rs`.
     pub(crate) conn: Connection,
 }
 
@@ -866,12 +890,13 @@ impl Db {
         Ok(())
     }
 
-    /// Image files still referenced by some D-Day.
+    /// Image files still referenced by a D-Day, book, TRPG entry or commission.
     pub fn referenced_images(&self) -> DbResult<std::collections::HashSet<String>> {
         let mut st = self.conn.prepare(
             "SELECT image FROM ddays WHERE image IS NOT NULL
              UNION SELECT image FROM trpg_entries WHERE image IS NOT NULL
-             UNION SELECT image FROM books WHERE image IS NOT NULL",
+             UNION SELECT image FROM books WHERE image IS NOT NULL
+             UNION SELECT image FROM commissions WHERE image IS NOT NULL",
         )?;
         let mut names: std::collections::HashSet<String> = st.query_map([], |r| r.get(0))?.collect::<DbResult<_>>()?;
         // The Overview header, image cards and stickers live in JSON settings; keep every image they mention.

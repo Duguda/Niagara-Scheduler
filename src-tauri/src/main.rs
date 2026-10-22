@@ -3,6 +3,7 @@
 mod backup;
 mod bookmarks;
 mod commands;
+mod commissions;
 mod db;
 mod expenses;
 mod health;
@@ -126,6 +127,12 @@ fn main() {
             commands::expenses_between,
             commands::save_expense,
             commands::delete_expense,
+            commands::commissions,
+            commands::save_commission,
+            commands::delete_commission,
+            commands::commission_clients,
+            commands::save_commission_client,
+            commands::delete_commission_client,
             commands::meals_between,
             commands::save_meal,
             commands::delete_meal,

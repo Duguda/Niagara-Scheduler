@@ -3,10 +3,11 @@
   import { eventMenu, moveEventWithUndo, pasteAsEvent, pasteOnHover, slotMenu } from '../lib/clipboard.svelte';
   import { eventHover, hideHoverCard, showHoverCard } from '../lib/hovercard.svelte';
   import { isSecondaryClick, openMenu } from '../lib/menu.svelte';
-  import type { CalEvent, DDay } from '../lib/api';
+  import type { CalEvent, Commission, DDay } from '../lib/api';
   import { hex, textOn } from '../lib/colors';
   import { layoutLanes, type CalTodo } from '../lib/lanes';
   import TodoChip from '../components/TodoChip.svelte';
+  import DeadlineChip from '../components/DeadlineChip.svelte';
   import TagDots from '../components/TagDots.svelte';
   import { eventColor } from '../lib/tags.svelte';
   import { calPrefs } from '../lib/calPrefs.svelte';
@@ -20,6 +21,7 @@
     events,
     ddays,
     todos = [],
+    deadlines = [],
     onopen,
     onnew,
     onday,
@@ -31,6 +33,8 @@
     ddays: DDay[];
     /** Todos with a due date, shown on that day. */
     todos?: CalTodo[];
+    /** Commissions not delivered yet, shown on their deadline. */
+    deadlines?: Commission[];
     onopen: (e: CalEvent) => void;
     onnew: (day: string) => void;
     onday: (day: string) => void;
@@ -103,7 +107,7 @@
 
   /** Lays out a week: multi-day events become one bar across the days they cover. */
   function layoutWeek(week: string[]) {
-    const { placed, lanesPerDay } = layoutLanes(week, ddays, events, todos, calPrefs.allDayLast);
+    const { placed, lanesPerDay } = layoutLanes(week, ddays, events, todos, calPrefs.allDayLast, deadlines);
     // If any day overflows, keep the last row for "+N more" buttons.
     const overflow = lanesPerDay.some((n) => n > capacity);
     const limit = overflow ? capacity - 1 : capacity;
@@ -162,6 +166,8 @@
               </div>
             {:else if b.kind === 'todo'}
               <TodoChip item={b.t} style="grid-column: {b.col + 1} / span 1; grid-row: {b.lane + 1}" />
+            {:else if b.kind === 'deadline'}
+              <DeadlineChip commission={b.c} style="grid-column: {b.col + 1} / span 1; grid-row: {b.lane + 1}" />
             {:else}
               {@const e = b.e}
               <button

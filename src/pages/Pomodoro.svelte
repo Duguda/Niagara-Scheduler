@@ -5,6 +5,7 @@
   import { PHASES, pomodoro, type Phase } from '../lib/pomodoro.svelte';
   import { data, load } from '../lib/state.svelte';
   import { t, type Key } from '../lib/i18n.svelte';
+  import FocusHistory from '../components/FocusHistory.svelte';
 
   let sessions = $state<PomodoroSession[]>([]);
   let openTodos = $state<string[]>([]);
@@ -149,6 +150,8 @@
       </div>
     </div>
   </div>
+
+  <FocusHistory />
 </div>
 
 <style>

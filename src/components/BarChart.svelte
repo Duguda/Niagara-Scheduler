@@ -5,8 +5,15 @@
     color = 'var(--primary)',
     height = 200,
     format = (v: number) => String(v),
-  }: { data: { label: string; value: number }[]; color?: string; height?: number; format?: (v: number) => string } =
-    $props();
+    onselect,
+  }: {
+    data: { label: string; value: number }[];
+    color?: string;
+    height?: number;
+    format?: (v: number) => string;
+    /** Makes the bars clickable; called with the bar's index. */
+    onselect?: (index: number) => void;
+  } = $props();
 
   let width = $state(600);
   const top = 22;
@@ -28,8 +35,10 @@
       {@const h = max > 0 ? (d.value / max) * chartH : 0}
       {@const cx = slot * (i + 0.5)}
       <g
+        class:clickable={!!onselect}
         onmouseenter={() => (hover = i)}
         onmouseleave={() => (hover = null)}
+        onclick={() => onselect?.(i)}
         role="presentation"
       >
         <rect x={cx - slot / 2} y={top} width={slot} height={chartH} fill="transparent" />
@@ -69,6 +78,9 @@
   }
   rect {
     transition: opacity 0.15s;
+  }
+  .clickable {
+    cursor: pointer;
   }
   text {
     text-anchor: middle;

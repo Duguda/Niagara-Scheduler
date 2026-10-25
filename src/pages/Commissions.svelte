@@ -4,13 +4,14 @@
   import { onMount } from 'svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import {
-    ArrowRight, Brush, CalendarClock, Contact, ExternalLink, HandCoins, Link, Minus, Pencil, Plus, Search, Trash,
-    SquareKanban, Users, Wallet, X,
+    ArrowRight, Brush, CalendarClock, ChevronsLeftRight, ChevronsRightLeft, Contact, ExternalLink, HandCoins, Link,
+    Minus, Pencil, Plus, ReceiptText, Search, SquareKanban, Trash, Users, Wallet, X,
   } from '@lucide/svelte';
   import Modal from '../components/Modal.svelte';
   import ConfirmButton from '../components/ConfirmButton.svelte';
   import DateField from '../components/DateField.svelte';
   import ImagePicker from '../components/ImagePicker.svelte';
+  import CommissionLedger from '../components/CommissionLedger.svelte';
   import StatCard from '../components/StatCard.svelte';
   import { api, type Commission, type CommissionClient, type CommissionStatus } from '../lib/api';
   import {
@@ -23,25 +24,41 @@
   import { openMenu, type MenuItem } from '../lib/menu.svelte';
   import { data, load, mutate, toast } from '../lib/state.svelte';
 
-  type Tab = 'board' | 'clients';
-  // A per-viewer convenience, remembered in this browser only.
-  const TAB_KEY = 'nora.commissions.tab';
-  function readTab(): Tab {
+  type Tab = 'board' | 'ledger' | 'clients';
+  // Per-viewer conveniences, remembered in this browser only.
+  const PREFS_KEY = 'nora.commissions';
+  const ALL_STAGES = STAGES.map((s) => s.id);
+  function readPrefs(): { tab?: Tab; stages?: CommissionStatus[]; folded?: CommissionStatus[] } {
     try {
-      return localStorage.getItem(TAB_KEY) === 'clients' ? 'clients' : 'board';
+      return JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') ?? {};
     } catch {
-      return 'board';
+      return {};
     }
   }
-  let tab = $state<Tab>(readTab());
+  const prefs = readPrefs();
+  const stageList = (v: unknown) => (Array.isArray(v) ? ALL_STAGES.filter((id) => v.includes(id)) : null);
+  let tab = $state<Tab>(prefs.tab === 'ledger' || prefs.tab === 'clients' ? prefs.tab : 'board');
+  /** Stages shown on the board (at least one). */
+  let shownStages = $state<CommissionStatus[]>(stageList(prefs.stages)?.length ? stageList(prefs.stages)! : [...ALL_STAGES]);
+  /** Columns folded into a narrow strip. */
+  let folded = $state<CommissionStatus[]>(stageList(prefs.folded) ?? []);
   $effect(() => {
-    const value = tab;
+    const value = JSON.stringify({ tab, stages: shownStages, folded });
     try {
-      localStorage.setItem(TAB_KEY, value);
+      localStorage.setItem(PREFS_KEY, value);
     } catch {
       /* not remembered; fine */
     }
   });
+
+  function toggleStage(id: CommissionStatus) {
+    if (shownStages.includes(id)) {
+      if (shownStages.length > 1) shownStages = shownStages.filter((x) => x !== id);
+    } else {
+      shownStages = ALL_STAGES.filter((x) => x === id || shownStages.includes(x));
+    }
+  }
+  const toggleFold = (id: CommissionStatus) => (folded = folded.includes(id) ? folded.filter((x) => x !== id) : [...folded, id]);
 
   let commissions = $state<Commission[]>([]);
   let clients = $state<CommissionClient[]>([]);
@@ -72,8 +89,14 @@
     return commissions.filter((c) => [c.title, clientName(c), c.kind, c.memo].some((s) => s.toLowerCase().includes(q)));
   });
   const columns = $derived(
-    STAGES.map((s) => ({ ...s, items: matching.filter((c) => c.status === s.id).sort(s.id === 'done' ? byDelivered : byDeadline) })),
+    STAGES.filter((s) => shownStages.includes(s.id)).map((s) => ({
+      ...s,
+      folded: folded.includes(s.id),
+      items: matching.filter((c) => c.status === s.id).sort(s.id === 'done' ? byDelivered : byDeadline),
+    })),
   );
+  /** Folded columns take a narrow strip; the others share the rest. */
+  const boardColumns = $derived(columns.map((c) => (c.folded ? '52px' : 'minmax(210px, 1fr)')).join(' '));
 
   // ---- numbers at the top
   const todayStr = $derived(today());
@@ -324,12 +347,28 @@
   <div class="toolbar">
     <div class="segmented">
       <button class:active={tab === 'board'} onclick={() => (tab = 'board')}><SquareKanban size={15} /> {t('cm.board')}</button>
+      <button class:active={tab === 'ledger'} onclick={() => (tab = 'ledger')}><ReceiptText size={15} /> {t('cm.ledger')}</button>
       <button class:active={tab === 'clients'} onclick={() => (tab = 'clients')}><Users size={15} /> {t('cm.clients')}</button>
     </div>
+    {#if tab === 'board'}
+      <div class="stage-filter" role="group" aria-label={t('cm.showStages')}>
+        {#each STAGES as s (s.id)}
+          <button
+            type="button"
+            class="stage-chip"
+            class:on={shownStages.includes(s.id)}
+            style:--c={s.color}
+            aria-pressed={shownStages.includes(s.id)}
+            title={t('cm.showStage', { stage: t(s.label) })}
+            onclick={() => toggleStage(s.id)}
+          ><span class="dot"></span>{t(s.label)}</button>
+        {/each}
+      </div>
+    {/if}
     <span class="spacer"></span>
     <label class="search">
       <Search size={15} />
-      <input class="input" placeholder={t(tab === 'board' ? 'cm.search' : 'cm.searchClients')} bind:value={query} />
+      <input class="input" placeholder={t(tab === 'clients' ? 'cm.searchClients' : 'cm.search')} bind:value={query} />
     </label>
     {#if tab === 'clients'}
       <button class="btn" onclick={() => editClient({ id: 0, name: '', contact: '', memo: '' })}><Plus size={16} /> {t('cm.newClient')}</button>
@@ -345,10 +384,11 @@
         <button class="btn primary" onclick={() => edit(blank())}><Plus size={17} /> {t('cm.new')}</button>
       </div>
     {:else}
-      <div class="board">
+      <div class="board" style:grid-template-columns={boardColumns}>
         {#each columns as col (col.id)}
           <section
             class="column"
+            class:folded={col.folded}
             class:drop={dropStage === col.id}
             style:--c={col.color}
             ondragover={(e) => { if (dragId === null) return; e.preventDefault(); dropStage = col.id; }}
@@ -356,11 +396,21 @@
             ondrop={(e) => dropOn(e, col.id)}
             aria-label={t(col.label)}
           >
+            {#if col.folded}
+              <!-- Folded: a narrow strip; click to unfold. Cards can still be dropped on it. -->
+              <button class="fold-strip" onclick={() => toggleFold(col.id)} title={t('cm.unfold')} aria-label={t('cm.unfold')}>
+                <span class="col-icon"><col.icon size={15} /></span>
+                <span class="count">{col.items.length}</span>
+                <span class="strip-label strong">{t(col.label)}</span>
+                <ChevronsLeftRight size={15} />
+              </button>
+            {:else}
             <div class="col-head">
               <span class="col-icon"><col.icon size={15} /></span>
-              <span class="strong">{t(col.label)}</span>
+              <span class="strong truncate">{t(col.label)}</span>
               <span class="count">{col.items.length}</span>
               <span class="spacer"></span>
+              <button class="icon-btn small-btn" onclick={() => toggleFold(col.id)} title={t('cm.fold')} aria-label={t('cm.fold')}><ChevronsRightLeft size={15} /></button>
               <button class="icon-btn small-btn" onclick={() => edit(blank(col.id))} title={t('cm.new')} aria-label={t('cm.new')}><Plus size={15} /></button>
             </div>
             {#each col.items as c (c.id)}
@@ -392,10 +442,13 @@
             {:else}
               <p class="faint small col-empty">{query.trim() ? t('trpg.noMatch') : t('cm.emptyColumn')}</p>
             {/each}
+            {/if}
           </section>
         {/each}
       </div>
     {/if}
+  {:else if tab === 'ledger'}
+    <CommissionLedger commissions={matching} {clientName} onopen={edit} />
   {:else if shownClients.length}
     <div class="clients">
       {#each shownClients as x (x.client.id)}
@@ -627,10 +680,45 @@
     padding-left: 34px;
   }
 
+  .stage-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .stage-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 11px;
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--faint);
+    font-size: 12.5px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s, color 0.12s;
+  }
+  .stage-chip .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--c);
+    opacity: 0.35;
+  }
+  .stage-chip.on {
+    border-color: color-mix(in srgb, var(--c) 60%, var(--border));
+    background: color-mix(in srgb, var(--c) 10%, var(--surface));
+    color: var(--text);
+  }
+  .stage-chip.on .dot {
+    opacity: 1;
+  }
+
   /* ---- board */
   .board {
     display: grid;
-    grid-template-columns: repeat(5, minmax(210px, 1fr));
     gap: 12px;
     align-items: start;
     overflow-x: auto;
@@ -647,6 +735,31 @@
     border-radius: var(--radius-lg);
     background: var(--surface-2);
     transition: border-color 0.12s, background 0.12s;
+  }
+  .column.folded {
+    padding: 6px;
+  }
+  .fold-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 220px;
+    padding: 6px 0;
+    border: none;
+    border-radius: var(--radius);
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .fold-strip:hover {
+    background: var(--surface);
+  }
+  .strip-label {
+    writing-mode: vertical-rl;
+    color: var(--text);
+    letter-spacing: 0.04em;
   }
   .column.drop {
     border-color: var(--c);

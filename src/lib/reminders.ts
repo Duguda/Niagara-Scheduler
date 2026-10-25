@@ -17,18 +17,20 @@ export const reminderLabel = (minutes: number | null) =>
 
 let audio: AudioContext | null = null;
 
-/** A short two-note chime, made with Web Audio so no sound file is needed. */
-export function playChime() {
+/** A short two-note chime, made with Web Audio so no sound file is needed. `rings` repeats it (alarms). */
+export function playChime(rings = 1) {
   try {
     audio ??= new AudioContext();
     if (audio.state === 'suspended') audio.resume();
     const now = audio.currentTime;
-    [880, 1318.5].forEach((freq, i) => {
+    // Each ring is the same two notes, 0.7 s apart.
+    const notes = Array.from({ length: rings }, (_, r) => [880, 1318.5].map((freq, i) => ({ freq, at: r * 0.7 + i * 0.18 }))).flat();
+    notes.forEach(({ freq, at }) => {
       const osc = audio!.createOscillator();
       const gain = audio!.createGain();
       osc.type = 'sine';
       osc.frequency.value = freq;
-      const start = now + i * 0.18;
+      const start = now + at;
       gain.gain.setValueAtTime(0, start);
       gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.6);

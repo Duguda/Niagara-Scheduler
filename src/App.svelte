@@ -28,6 +28,7 @@
   import Todos from './pages/Todos.svelte';
   import Pomodoro from './pages/Pomodoro.svelte';
   import Memos from './pages/Memos.svelte';
+  import Diary from './pages/Diary.svelte';
   import Tracking from './pages/Tracking.svelte';
   import Analytics from './pages/Analytics.svelte';
   import Bookmarks from './pages/Bookmarks.svelte';
@@ -287,6 +288,7 @@
         {:else if ui.page === 'todos'}<Todos />
         {:else if ui.page === 'pomodoro'}<Pomodoro />
         {:else if ui.page === 'memos'}<Memos />
+        {:else if ui.page === 'diary'}<Diary />
         {:else if ui.page === 'tracking'}<Tracking />
         {:else if ui.page === 'analytics'}<Analytics />
         {:else if ui.page === 'bookmarks'}<Bookmarks />

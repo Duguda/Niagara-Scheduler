@@ -69,11 +69,12 @@
   /**
    * Markdown checklists come out as `<li><input disabled> text</li>`, which looks nothing like the
    * editor (faded boxes, text wrapping under the box). Rebuild them with the editor's markup so the
-   * same styles apply. The boxes stay read-only; double-click the memo to edit.
+   * same styles apply. Each box is numbered in reading order so a click can tick it in the Markdown.
    */
   function editorChecklists(source: string): string {
     const tpl = document.createElement('template');
     tpl.innerHTML = source;
+    tpl.content.querySelectorAll<HTMLInputElement>('li input[type=checkbox]').forEach((box, i) => (box.dataset.task = String(i)));
     for (const li of tpl.content.querySelectorAll('li')) {
       // Tight lists put the box straight in the item; loose ones (blank lines between items) in a <p>.
       const box = li.querySelector<HTMLInputElement>(':scope > input[type=checkbox], :scope > p:first-child > input[type=checkbox]');
@@ -84,8 +85,7 @@
       box.remove();
       if (host.firstChild?.nodeType === Node.TEXT_NODE) host.firstChild.textContent = host.firstChild.textContent!.trimStart();
       box.removeAttribute('disabled');
-      box.tabIndex = -1;
-      box.className = 'view-only';
+      box.className = 'task-box';
       const label = document.createElement('label');
       label.append(box);
       const content = document.createElement('div');
@@ -166,7 +166,35 @@
   }
 
   // Open links from the preview in the system browser.
+  /**
+   * Ticks the `n`-th checklist item of the memo's Markdown, counting in the order the viewer shows
+   * them (code blocks are skipped, as Markdown doesn't make checkboxes there).
+   */
+  function setTask(n: number, checked: boolean) {
+    const lines = body.split('\n');
+    let index = 0;
+    let fence = false;
+    for (let k = 0; k < lines.length; k++) {
+      if (/^\s*(```|~~~)/.test(lines[k])) {
+        fence = !fence;
+        continue;
+      }
+      if (fence) continue;
+      const m = lines[k].match(/^((?:\s*>)*\s*(?:[-*+]|\d+[.)])\s+)\[[ xX]\]/);
+      if (!m || index++ !== n) continue;
+      lines[k] = `${m[1]}[${checked ? 'x' : ' '}]${lines[k].slice(m[0].length)}`;
+      body = lines.join('\n');
+      edited();
+      return;
+    }
+  }
+
   function previewClick(e: MouseEvent) {
+    const box = e.target;
+    if (box instanceof HTMLInputElement && box.dataset.task !== undefined) {
+      setTask(Number(box.dataset.task), box.checked);
+      return;
+    }
     const a = (e.target as HTMLElement).closest('a');
     if (a?.href) {
       e.preventDefault();
@@ -369,7 +397,7 @@
         <div class="box">
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="scroll prose reading" onclick={previewClick} ondblclick={() => (editing = true)}>{@html html}</div>
+          <div class="scroll prose reading" onclick={previewClick} ondblclick={(e) => !(e.target instanceof HTMLInputElement) && (editing = true)}>{@html html}</div>
         </div>
       {:else}
         <div class="panes" class:split={mode === 'markdown'}>

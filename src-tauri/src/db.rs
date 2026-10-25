@@ -218,6 +218,18 @@ CREATE TABLE IF NOT EXISTS commissions (
     delivered  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS diary (
+    date       TEXT    PRIMARY KEY,
+    mood       TEXT    NOT NULL DEFAULT '',
+    layout     TEXT    NOT NULL DEFAULT 'classic',
+    paper      TEXT    NOT NULL DEFAULT 'lined',
+    line       TEXT    NOT NULL DEFAULT '',
+    body       TEXT    NOT NULL DEFAULT '',
+    photo      TEXT,
+    stickers   TEXT    NOT NULL DEFAULT '[]',
+    updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -485,7 +497,7 @@ fn todo_from_row(r: &Row) -> DbResult<Todo> {
 }
 
 pub struct Db {
-    /// Shared with the `impl Db` blocks in `bookmarks.rs`, `expenses.rs`, `health.rs`, `trpg.rs`, `reading.rs` and `commissions.rs`.
+    /// Shared with the `impl Db` blocks in `bookmarks.rs`, `expenses.rs`, `health.rs`, `trpg.rs`, `reading.rs`, `commissions.rs` and `diary.rs`.
     pub(crate) conn: Connection,
 }
 
@@ -890,7 +902,7 @@ impl Db {
         Ok(())
     }
 
-    /// Image files still referenced by a D-Day, book, TRPG entry or commission.
+    /// Image files still referenced by a D-Day, book, TRPG entry, commission or diary page.
     pub fn referenced_images(&self) -> DbResult<std::collections::HashSet<String>> {
         let mut st = self.conn.prepare(
             "SELECT image FROM ddays WHERE image IS NOT NULL
@@ -899,6 +911,8 @@ impl Db {
              UNION SELECT image FROM commissions WHERE image IS NOT NULL",
         )?;
         let mut names: std::collections::HashSet<String> = st.query_map([], |r| r.get(0))?.collect::<DbResult<_>>()?;
+        // Diary photos and the stickers placed on diary pages.
+        names.extend(self.diary_images()?);
         // The Overview header, image cards and stickers live in JSON settings; keep every image they mention.
         for key in IMAGE_SETTINGS {
             if let Some(json) = self.setting(key)? {

@@ -749,9 +749,9 @@ input[type='time'] {
   color: var(--faint);
   text-decoration: line-through;
 }
-/* In the memo viewer the boxes are read-only. */
-.prose input.view-only {
-  pointer-events: none;
+/* Checklist boxes in the memo viewer can be ticked directly. */
+.prose input.task-box {
+  cursor: pointer;
 }
 .prose table {
   border-collapse: collapse;

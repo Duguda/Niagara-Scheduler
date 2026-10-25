@@ -6,6 +6,7 @@
   import StarterKit from '@tiptap/starter-kit';
   import { Markdown } from '@tiptap/markdown';
   import { TaskItem, TaskList } from '@tiptap/extension-list';
+  import { fixTaskToggles } from '../lib/taskToggle';
   import { Placeholder } from '@tiptap/extensions';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import {
@@ -18,6 +19,7 @@
   let { value, onchange, placeholder }: { value: string; onchange: (markdown: string) => void; placeholder?: string } = $props();
 
   let element: HTMLDivElement;
+  let stopTaskFix: (() => void) | undefined;
   let editor = $state<Editor | null>(null);
   /** Bumped on every editor transaction so toolbar states re-evaluate. */
   let version = $state(0);
@@ -38,6 +40,7 @@
       contentType: 'markdown',
       editorProps: {
         attributes: { class: 'prose rich-content' },
+
         // ⌘/Ctrl-click opens a link in the browser; a plain click just places the cursor.
         handleClick: (_view, _pos, event) => {
           const a = (event.target as HTMLElement).closest('a');
@@ -51,9 +54,13 @@
       onUpdate: ({ editor }) => onchange(editor.getMarkdown()),
       onTransaction: () => version++,
     });
+    stopTaskFix = fixTaskToggles(element, () => editor);
   });
 
-  onDestroy(() => editor?.destroy());
+  onDestroy(() => {
+    stopTaskFix?.();
+    editor?.destroy();
+  });
 
   function active(name: string, attrs?: Record<string, unknown>) {
     version; // re-run when the editor changes

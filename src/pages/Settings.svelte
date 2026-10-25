@@ -119,7 +119,7 @@
   let resetUnderstood = $state(false);
   let restarting = $state(false);
 
-  const COUNT_KEYS = ['events', 'todos', 'memos', 'ddays', 'bookmarks', 'expenses', 'meals', 'workouts', 'commissions', 'trpg', 'books', 'images'] as const;
+  const COUNT_KEYS = ['events', 'todos', 'memos', 'ddays', 'bookmarks', 'expenses', 'meals', 'workouts', 'commissions', 'diary', 'trpg', 'books', 'images'] as const;
 
   async function doExport() {
     exporting = true;

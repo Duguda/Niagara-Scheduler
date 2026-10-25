@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { Coffee, Flame, Pause, Play, RotateCcw, SkipForward } from '@lucide/svelte';
+  import { Coffee, Flame, Pause, Play, RotateCcw, SkipForward, Volume2 } from '@lucide/svelte';
   import { api, type PomodoroSession } from '../lib/api';
   import { dayStartTs, fmtDuration, fmtTs, today } from '../lib/dates';
   import { PHASES, pomodoro, type Phase } from '../lib/pomodoro.svelte';
+  import { playChime } from '../lib/reminders';
   import { data, load } from '../lib/state.svelte';
   import { t, type Key } from '../lib/i18n.svelte';
   import FocusHistory from '../components/FocusHistory.svelte';
@@ -126,6 +127,13 @@
           <label class="setting">
             <span>{t('pomo.auto')}</span>
             <input type="checkbox" class="switch" bind:checked={pomodoro.autoStart} onchange={() => pomodoro.saveSettings()} />
+          </label>
+          <label class="setting">
+            <span>{t('pomo.sound')}</span>
+            <span class="sound-opt">
+              <button type="button" class="icon-btn" onclick={() => playChime(3)} title={t('pomo.soundTest')} aria-label={t('pomo.soundTest')}><Volume2 size={16} /></button>
+              <input type="checkbox" class="switch" bind:checked={pomodoro.sound} onchange={() => pomodoro.saveSettings()} />
+            </span>
           </label>
         </div>
       </div>
@@ -359,5 +367,10 @@
   }
   .session.partial .session-icon {
     opacity: 0.55;
+  }
+  .sound-opt {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
 </style>

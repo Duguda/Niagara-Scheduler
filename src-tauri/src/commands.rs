@@ -9,6 +9,7 @@ use crate::AppState;
 use crate::backup::{self, Manifest};
 use crate::bookmarks::{Bookmark, BookmarkFolder};
 use crate::commissions::{Commission, CommissionClient};
+use crate::diary::DiaryEntry;
 use crate::expenses::Expense;
 use crate::health::{self, Meal, Workout};
 use crate::db::{ActivitySummary, Activity, DDay, Event, Memo, MemoGroup, PomodoroSession, Scope, Tag, Todo, TodoGroup};
@@ -552,6 +553,36 @@ pub fn save_commission_client(state: State<AppState>, client: CommissionClient) 
 #[tauri::command]
 pub fn delete_commission_client(state: State<AppState>, id: i64) -> CmdResult<()> {
     with_db(&state, |db| db.delete_commission_client(id))
+}
+
+// ---- diary ----------------------------------------------------------------------
+
+#[tauri::command]
+pub fn diary_between(state: State<AppState>, from: NaiveDate, to: NaiveDate) -> CmdResult<Vec<DiaryEntry>> {
+    with_db(&state, |db| db.diary_between(from, to))
+}
+
+#[tauri::command]
+pub fn save_diary_entry(state: State<AppState>, entry: DiaryEntry) -> CmdResult<()> {
+    let pick = |value: &str, allowed: &[&str]| if allowed.contains(&value) { value.to_string() } else { allowed[0].to_string() };
+    let safe = crate::images::is_safe_name;
+    let entry = DiaryEntry {
+        mood: if DiaryEntry::MOODS.contains(&entry.mood.as_str()) { entry.mood.clone() } else { String::new() },
+        layout: pick(&entry.layout, &DiaryEntry::LAYOUTS),
+        paper: pick(&entry.paper, &DiaryEntry::PAPERS),
+        line: entry.line.trim().chars().take(200).collect(),
+        photo: entry.photo.filter(|name| safe(name)),
+        stickers: entry.stickers.into_iter().filter(|s| safe(&s.image)).take(60).collect(),
+        ..entry
+    };
+    with_db(&state, |db| db.save_diary_entry(&entry))?;
+    // A replaced photo or removed sticker may no longer be used anywhere.
+    remove_unused_images(state)
+}
+
+#[tauri::command]
+pub fn delete_diary_entry(state: State<AppState>, date: NaiveDate) -> CmdResult<Option<DiaryEntry>> {
+    with_db(&state, |db| db.delete_diary_entry(date))
 }
 
 // ---- diet and exercise -----------------------------------------------------------

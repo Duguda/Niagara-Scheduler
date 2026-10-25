@@ -5,6 +5,7 @@ mod bookmarks;
 mod commands;
 mod commissions;
 mod db;
+mod diary;
 mod expenses;
 mod health;
 mod images;
@@ -133,6 +134,9 @@ fn main() {
             commands::commission_clients,
             commands::save_commission_client,
             commands::delete_commission_client,
+            commands::diary_between,
+            commands::save_diary_entry,
+            commands::delete_diary_entry,
             commands::meals_between,
             commands::save_meal,
             commands::delete_meal,

@@ -131,6 +131,36 @@ export interface Expense {
   note: string;
 }
 
+export type DiaryMood = '' | 'great' | 'good' | 'love' | 'okay' | 'tired' | 'sad' | 'angry';
+export type DiaryLayout = 'classic' | 'photo' | 'simple';
+export type DiaryPaper = 'lined' | 'grid' | 'dots' | 'plain';
+
+export interface DiarySticker {
+  id: string;
+  image: string;
+  /** Center as a fraction (0–1) of the open book. */
+  x: number;
+  y: number;
+  /** Width as a fraction of the open book's width. */
+  w: number;
+  /** Rotation in degrees. */
+  rot: number;
+}
+
+export interface DiaryEntry {
+  date: DateStr;
+  mood: DiaryMood;
+  layout: DiaryLayout;
+  paper: DiaryPaper;
+  /** "Today in one line". */
+  line: string;
+  /** The writing, as HTML from the editor (keeps highlighter colors). */
+  body: string;
+  photo: string | null;
+  stickers: DiarySticker[];
+  updated_at: number;
+}
+
 export type CommissionStatus = 'inquiry' | 'queued' | 'working' | 'review' | 'done';
 
 export interface CommissionPayment {
@@ -249,7 +279,7 @@ export interface BackupManifest {
   format: number;
   app_version: string;
   exported_at: number;
-  counts: { events: number; todos: number; memos: number; ddays: number; bookmarks: number; expenses: number; trpg?: number; books?: number; meals?: number; workouts?: number; commissions?: number; images: number };
+  counts: { events: number; todos: number; memos: number; ddays: number; bookmarks: number; expenses: number; trpg?: number; books?: number; meals?: number; workouts?: number; commissions?: number; diary?: number; images: number };
 }
 
 export interface Memo {
@@ -370,6 +400,11 @@ export const api = {
   expensesBetween: (from: DateStr, to: DateStr) => invoke<Expense[]>('expenses_between', { from, to }),
   saveExpense: (expense: Expense) => invoke<number>('save_expense', { expense }),
   deleteExpense: (id: number) => invoke<Expense | null>('delete_expense', { id }),
+
+  diaryBetween: (from: DateStr, to: DateStr) => invoke<DiaryEntry[]>('diary_between', { from, to }),
+  /** A blank page (nothing written or chosen) is removed instead of saved. */
+  saveDiaryEntry: (entry: DiaryEntry) => invoke<void>('save_diary_entry', { entry }),
+  deleteDiaryEntry: (date: DateStr) => invoke<DiaryEntry | null>('delete_diary_entry', { date }),
 
   commissions: () => invoke<Commission[]>('commissions'),
   saveCommission: (commission: Commission) => invoke<number>('save_commission', { commission }),

@@ -2,6 +2,7 @@
 // other pages. Uses wall-clock deadlines, so it stays accurate in the background.
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 import { api } from './api';
+import { playChime } from './reminders';
 import { data, toast } from './state.svelte';
 import { t } from './i18n.svelte';
 
@@ -13,7 +14,7 @@ export const PHASES: Record<Phase, { name: () => string; color: string }> = {
   long: { name: () => t('pomo.long'), color: 'var(--long-break)' },
 };
 
-const SETTINGS = ['focusMin', 'shortMin', 'longMin', 'longEvery', 'autoStart'] as const;
+const SETTINGS = ['focusMin', 'shortMin', 'longMin', 'longEvery', 'autoStart', 'sound'] as const;
 
 /** Focus shorter than this is not saved when stopped early (an accidental start). */
 const MIN_SAVED_SECS = 60;
@@ -35,6 +36,8 @@ class Pomodoro {
   longMin = $state(15);
   longEvery = $state(4);
   autoStart = $state(false);
+  /** Ring an alarm when a focus session or break ends. */
+  sound = $state(true);
 
   phase = $state<Phase>('focus');
   label = $state('');
@@ -79,7 +82,7 @@ class Pomodoro {
     for (const key of SETTINGS) {
       const v = await api.getSetting(`pomodoro.${key}`).catch(() => null);
       if (v === null) continue;
-      if (key === 'autoStart') this.autoStart = v === 'true';
+      if (key === 'autoStart' || key === 'sound') this[key] = v === 'true';
       else if (Number(v) > 0) this[key] = Number(v);
     }
     if (!this.started) this.pausedRemaining = this.phaseMs;
@@ -204,6 +207,7 @@ class Pomodoro {
     const body = wasFocus ? t('pomo.doneFocus') : t('pomo.doneBreak');
     toast(body, 'success');
     sendNotification({ title: 'Nora Schedule', body });
+    if (this.sound) playChime(3);
   }
 }
 

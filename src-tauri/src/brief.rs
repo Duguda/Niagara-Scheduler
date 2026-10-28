@@ -66,7 +66,15 @@ pub struct Brief {
 }
 
 fn day_events(db: &Db, day: NaiveDate) -> DbResult<Vec<BriefEvent>> {
-    let mut events: Vec<Event> = db.events_between(day, day)?;
+    // The query also returns timed events that end exactly at 00:00 of `day`; those belong to the day before.
+    let mut events: Vec<Event> = db
+        .events_between(day, day)?
+        .into_iter()
+        .filter(|e| {
+            let (first, last) = e.date_span();
+            first <= day && day <= last
+        })
+        .collect();
     events.sort_by_key(|e| (!e.all_day, e.start));
     Ok(events
         .into_iter()
@@ -138,9 +146,13 @@ pub fn build(db: &Db, today: NaiveDate) -> DbResult<Brief> {
 /// Writes the brief next to the database. A temporary file plus rename means a reader never
 /// sees a half-written file.
 pub fn write(dir: &Path, brief: &Brief) -> io::Result<PathBuf> {
+    write_as(dir, FILE_NAME, brief)
+}
+
+fn write_as(dir: &Path, name: &str, brief: &Brief) -> io::Result<PathBuf> {
     let json = serde_json::to_string_pretty(brief).map_err(io::Error::other)?;
-    let path = dir.join(FILE_NAME);
-    let tmp = dir.join(format!("{FILE_NAME}.tmp"));
+    let path = dir.join(name);
+    let tmp = dir.join(format!("{name}.tmp"));
     fs::write(&tmp, json)?;
     fs::rename(&tmp, &path)?;
     Ok(path)
@@ -203,6 +215,37 @@ mod tests {
         assert_eq!(brief.todos_overdue[0].group.as_deref(), Some("자격증"));
         assert_eq!(brief.todos_today.len(), 1);
         assert_eq!(brief.todos_today[0].due_time.as_deref(), Some("09:00"));
+    }
+
+    #[test]
+    fn events_list_only_what_touches_the_day() {
+        let (db, _) = temp_db();
+        let at = |s: &str| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M").unwrap();
+        let ev = |title: &str, start: &str, end: &str| Event {
+            id: 0,
+            title: title.into(),
+            start: at(start),
+            end: at(end),
+            all_day: false,
+            color: 0,
+            location: String::new(),
+            links: vec![],
+            memo: String::new(),
+            repeat: None,
+            exdates: vec![],
+            occurrence: None,
+            cancelled: false,
+            tags: vec![],
+            reminder: None,
+        };
+        db.save_event(&ev("late", "2026-10-27 22:00", "2026-10-28 00:00"), crate::db::Scope::All).unwrap();
+        db.save_event(&ev("study", "2026-10-28 19:00", "2026-10-28 21:00"), crate::db::Scope::All).unwrap();
+        db.save_event(&ev("overnight", "2026-10-28 23:00", "2026-10-29 01:00"), crate::db::Scope::All).unwrap();
+        let today = day_events(&db, d("2026-10-28")).unwrap();
+        let titles: Vec<_> = today.iter().map(|e| e.title.as_str()).collect();
+        assert_eq!(titles, vec!["study", "overnight"]);
+        assert_eq!(today[0].start.as_deref(), Some("19:00"));
+        assert_eq!(today[1].end, None, "ends tomorrow");
     }
 
     #[test]

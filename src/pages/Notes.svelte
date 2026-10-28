@@ -9,7 +9,7 @@
   import { api, type NoteMeta } from '../lib/api';
   import { fmtTs } from '../lib/dates';
   import { t } from '../lib/i18n.svelte';
-  import { DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, renderNote, resolveWikiLink, VAULT_KEY, WIKI_PREFIX } from '../lib/obsidian';
+  import { DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, noteLinkTarget, renderNote, resolveWikiLink, VAULT_KEY, WIKI_PREFIX } from '../lib/obsidian';
   import { toast } from '../lib/state.svelte';
 
   /** Long lists are cut here; search narrows them. */
@@ -92,12 +92,13 @@
     settingsOpen = false;
   }
 
-  async function openNote(n: NoteMeta, fromLink = false) {
+  /** `list`: picked in the list (history restarts) · `link`: followed a link · `back`: Back button. */
+  async function openNote(n: NoteMeta, how: 'list' | 'link' | 'back' = 'list') {
     try {
       const text = await api.obsidianRead(n.path);
       const rendered = renderNote(text, t('ob.embed'));
-      if (fromLink && current) history = [...history, current];
-      if (!fromLink) history = [];
+      if (how === 'link' && current) history = [...history, current];
+      if (how === 'list') history = [];
       current = n;
       html = rendered.html;
       tags = rendered.tags;
@@ -110,7 +111,7 @@
     const prev = history.at(-1);
     if (!prev) return;
     history = history.slice(0, -1);
-    openNote(prev).then(() => (history = history));
+    openNote(prev, 'back');
   }
 
   async function openInObsidian() {
@@ -127,14 +128,17 @@
     const href = a?.getAttribute('href');
     if (!href) return;
     e.preventDefault();
-    if (href.startsWith(WIKI_PREFIX)) {
-      const name = decodeURIComponent(href.slice(WIKI_PREFIX.length));
-      const target = resolveWikiLink(name, notes);
-      if (target) openNote(target, true);
-      else toast(t('ob.linkMissing', { name }), 'info');
-    } else if (/^https?:|^mailto:/i.test(href)) {
+    if (/^https?:|^mailto:/i.test(href)) {
       openUrl(href);
+      return;
     }
+    let name: string | null = null;
+    if (href.startsWith(WIKI_PREFIX)) name = decodeURIComponent(href.slice(WIKI_PREFIX.length));
+    else if (/\.md(#.*)?$/i.test(href) && !/^[a-z]+:/i.test(href)) name = noteLinkTarget(href, current?.folder ?? '');
+    if (name === null) return;
+    const target = resolveWikiLink(name, notes);
+    if (target) openNote(target, 'link');
+    else toast(t('ob.linkMissing', { name }), 'info');
   }
 </script>
 
@@ -409,6 +413,13 @@
     background: var(--surface-2);
     color: var(--muted);
     font-size: 12.5px;
+  }
+  .reading :global(li:has(> input[type='checkbox'])) {
+    list-style: none;
+    margin-left: -1.3em;
+  }
+  .reading :global(li > input[type='checkbox']) {
+    margin-right: 6px;
   }
   .reading :global(mark) {
     background: color-mix(in srgb, #f5d547 55%, transparent);

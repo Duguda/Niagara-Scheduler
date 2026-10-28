@@ -188,7 +188,7 @@ export function installMock() {
   // A tiny Obsidian vault for the browser preview of the Obsidian page.
   const vaultNotes: Record<string, string> = {
     'Home.md': '---\ntags: [hub]\n---\n# Home\n\nStudy hub. See [[SQL 정리]] and [[Network|network notes]].\n\n> [!tip] Today\n> Review ==JOIN== before the exam.\n\n![[diagram.png]]',
-    '10 Study/SQL 정리.md': '# SQL 정리\n\n- [x] SELECT\n- [ ] JOIN\n\n> [!warning] 주의\n> GROUP BY 다음에 HAVING.\n\n```sql\nSELECT * FROM t; -- [[not a link]]\n```\n\nBack to [[Home]].',
+    '10 Study/SQL 정리.md': '# SQL 정리\n\n- [x] SELECT\n- [ ] JOIN\n\n> [!warning] 주의\n> GROUP BY 다음에 HAVING.\n\n```sql\nSELECT * FROM t; -- [[not a link]]\n```\n\nBack to [[Home]]. Also [network](Network.md).\n\n![chart](img/chart.png)',
     '10 Study/Network.md': '# Network\n\nOSI 7 layers.',
     '20 Daily/2026-10-28.md': 'Ran 5km.',
   };

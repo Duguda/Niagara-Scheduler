@@ -91,11 +91,37 @@ function callouts(html: string): string {
   return tpl.innerHTML;
 }
 
+/** Images stored in the vault (relative paths) cannot be loaded here: name them like embeds. */
+function localImages(html: string, embedLabel: string): string {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  for (const img of tpl.content.querySelectorAll('img')) {
+    const src = img.getAttribute('src') ?? '';
+    if (/^(https?:|data:)/i.test(src)) continue;
+    const chip = document.createElement('span');
+    chip.className = 'ob-embed';
+    chip.textContent = `${embedLabel} · ${img.getAttribute('alt') || decodeURIComponent(src.split('/').pop() ?? src)}`;
+    img.replaceWith(chip);
+  }
+  return tpl.innerHTML;
+}
+
 export function renderNote(text: string, embedLabel: string): { html: string; tags: string[] } {
   const { tags, body } = splitFrontMatter(text);
   const raw = marked.parse(obsidianInline(body, embedLabel), { async: false, gfm: true, breaks: true });
-  const clean = DOMPurify.sanitize(raw, { ADD_ATTR: ['target'] });
-  return { html: callouts(clean), tags };
+  const clean = DOMPurify.sanitize(raw);
+  return { html: callouts(localImages(clean, embedLabel)), tags };
+}
+
+/** A relative Markdown link (`../x.md`, `sub/y.md#h`) from a note in `folder`, as a vault path. */
+export function noteLinkTarget(href: string, folder: string): string {
+  const path = decodeURIComponent(href.split('#')[0]);
+  const parts = path.startsWith('/') ? [] : folder.split('/').filter(Boolean);
+  for (const part of path.split('/')) {
+    if (part === '..') parts.pop();
+    else if (part && part !== '.') parts.push(part);
+  }
+  return parts.join('/');
 }
 
 /** Finds the note a wikilink points to: by path, else by title (Obsidian's shortest-path links). */

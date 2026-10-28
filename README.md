@@ -141,6 +141,14 @@ Nora와 Niagara는 따로 저장되니까 둘을 같이 설치해 둬도 서로 
 
 데이터는 OS의 앱 데이터 폴더(Windows: `%APPDATA%\com.niagara.scheduler`, macOS: `~/Library/Application Support/com.niagara.scheduler`)에 SQLite 파일과 이미지 폴더로 저장돼요.
 
+## 설치하기
+
+`main`에 변경이 올라오면 GitHub Actions가 Windows 설치 파일을 만들어요.
+
+1. 이 레포의 **Actions** 탭 → **Build Windows installer** → 가장 최근의 성공한 실행을 열어요.
+2. 아래 **Artifacts**에서 `niagara-scheduler-windows`를 내려받아 압축을 풀고 `…-setup.exe`를 실행해요. (GitHub 로그인이 필요해요.)
+3. "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 눌러요. 서명되지 않은 개인 빌드라서 그래요.
+
 ## 직접 빌드하기
 
 필요한 것:

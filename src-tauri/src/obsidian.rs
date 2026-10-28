@@ -200,11 +200,13 @@ pub fn export_memo(root: &Path, dir: &str, memo: &MemoNote) -> Result<String, St
         .filter(|p| p.is_file() && is_markdown(p))
         .find(|p| fs::read_to_string(p).is_ok_and(|text| is_memo_note(&text, memo.id)));
 
+    // Windows and macOS file names ignore letter case, so "Plan.md" and "plan.md" are one file.
+    let same_file = |a: &Path, b: &Path| a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase();
     let mut path = None;
     for n in 1..1000 {
         let name = if n == 1 { format!("{stem}.md") } else { format!("{stem} {n}.md") };
         let candidate = target_dir.join(name);
-        if previous.as_ref() == Some(&candidate) || !candidate.exists() {
+        if previous.as_deref().is_some_and(|p| same_file(p, &candidate)) || !candidate.exists() {
             path = Some(candidate);
             break;
         }

@@ -22,6 +22,7 @@
   import StickerLayer from './components/StickerLayer.svelte';
   import { loadStickers } from './lib/stickers.svelte';
   import { guide, initGuide } from './lib/guide.svelte';
+  import { checkForUpdate } from './lib/updater.svelte';
   import { loadCalPrefs } from './lib/calPrefs.svelte';
   import Home from './pages/Home.svelte';
   import type { Component } from 'svelte';
@@ -71,6 +72,8 @@
     loadCalPrefs();
     initReminders();
     initGuide();
+    // A few seconds after start, so the first screen is not held up by the network.
+    setTimeout(() => checkForUpdate(true), 5000);
     // Changes made in the overlay panel reload here, and its links open pages here.
     initSync(data, refreshTags, () => {
       initTheme();

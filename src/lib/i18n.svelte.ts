@@ -1205,6 +1205,14 @@ const en = {
   'ob.gone': '“{name}” is no longer in the folder (deleted or moved elsewhere).',
   'ob.deleted': 'Moved “{name}” to the recycle bin',
   'ob.deleteQ': 'Move this note to the recycle bin?',
+  'upd.check': 'Check for updates',
+  'upd.checking': 'Checking…',
+  'upd.available': 'Niagara {v} is available.',
+  'upd.install': 'Update',
+  'upd.installV': 'Update to {v}',
+  'upd.latest': 'You have the latest version.',
+  'upd.downloading': 'Downloading the update… Niagara restarts when it is done.',
+  'upd.failed': 'Couldn\'t update: {error}',
 };
 
 export type Key = keyof typeof en;
@@ -2408,6 +2416,14 @@ const ko: Record<Key, string> = {
   'ob.gone': '“{name}” 노트가 폴더에 없어요 (다른 곳에서 지웠거나 옮겼어요).',
   'ob.deleted': '“{name}”을(를) 휴지통으로 옮겼어요',
   'ob.deleteQ': '이 노트를 휴지통으로 옮길까요?',
+  'upd.check': '업데이트 확인',
+  'upd.checking': '확인하는 중…',
+  'upd.available': '새 버전 {v}이(가) 나왔어요.',
+  'upd.install': '업데이트',
+  'upd.installV': '{v}로 업데이트',
+  'upd.latest': '최신 버전이에요.',
+  'upd.downloading': '업데이트를 받는 중이에요. 끝나면 Niagara가 다시 시작돼요.',
+  'upd.failed': '업데이트하지 못했어요: {error}',
 };
 
 const DICTS: Record<Locale, Record<Key, string>> = { en, ko, ja };

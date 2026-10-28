@@ -1201,4 +1201,12 @@ export const ja: Record<Key, string> = {
   'ob.gone': '「{name}」はフォルダーにありません（別の場所で削除・移動されました）。',
   'ob.deleted': '「{name}」をごみ箱に移しました',
   'ob.deleteQ': 'このノートをごみ箱に移しますか？',
+  'upd.check': 'アップデートを確認',
+  'upd.checking': '確認中…',
+  'upd.available': '新しいバージョン {v} があります。',
+  'upd.install': 'アップデート',
+  'upd.installV': '{v}にアップデート',
+  'upd.latest': '最新バージョンです。',
+  'upd.downloading': 'アップデートをダウンロード中… 終わるとNiagaraが再起動します。',
+  'upd.failed': 'アップデートできませんでした: {error}',
 };

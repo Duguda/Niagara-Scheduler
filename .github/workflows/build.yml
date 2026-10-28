@@ -1,7 +1,8 @@
 # Builds the Windows installer on GitHub so the app can be installed without a local toolchain.
 # - Push to main: the installer is a workflow artifact (Actions → this run → Artifacts).
 # - Push a version tag (`v0.11.0`): the same build is also published as a GitHub Release, where
-#   the setup .exe can be downloaded directly, without a zip or a GitHub login.
+#   the setup .exe can be downloaded directly, without a zip or a GitHub login, together with its
+#   signature and latest.json for the app's built-in updater (needs the TAURI_SIGNING_* secrets).
 name: Build Windows installer
 
 on:
@@ -55,6 +56,10 @@ jobs:
 
       - name: Build installer
         run: npx tauri build
+        env:
+          # Signs the update files (the app only installs updates signed with this key).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -74,5 +79,24 @@ jobs:
         run: |
           # Release notes = this version's section of docs/CHANGES.md.
           awk -v v="## ${TAG}" 'index($0, v) == 1 {on=1; next} /^## v/ {on=0} on' docs/CHANGES.md > notes.md
-          gh release create "$TAG" src-tauri/target/release/bundle/nsis/*-setup.exe \
+          # One installer without spaces in its name, its signature, and latest.json, which the
+          # app's updater reads from releases/latest/download/latest.json.
+          src=$(ls src-tauri/target/release/bundle/nsis/*-setup.exe | head -1)
+          name="Niagara-Scheduler_${TAG#v}_x64-setup.exe"
+          mkdir -p out && cp "$src" "out/$name" && cp "$src.sig" "out/$name.sig"
+          node -e '
+            const fs = require("fs");
+            const [tag, name, repo] = process.argv.slice(1);
+            const notes = fs.readFileSync("notes.md", "utf8").trim();
+            fs.writeFileSync("out/latest.json", JSON.stringify({
+              version: tag.replace(/^v/, ""),
+              notes,
+              pub_date: new Date().toISOString(),
+              platforms: { "windows-x86_64": {
+                signature: fs.readFileSync(`out/${name}.sig`, "utf8").trim(),
+                url: `https://github.com/${repo}/releases/download/${tag}/${name}`,
+              } },
+            }, null, 2));
+          ' "$TAG" "$name" "$GITHUB_REPOSITORY"
+          gh release create "$TAG" "out/$name" "out/$name.sig" out/latest.json \
             --title "Niagara Scheduler ${TAG}" --notes-file notes.md

@@ -65,6 +65,9 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        // Updates come from the latest GitHub release (signed; see tauri.conf.json → plugins.updater).
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         // Reopen at the size and position the window had when the app was last closed.
         .plugin(
             tauri_plugin_window_state::Builder::default()

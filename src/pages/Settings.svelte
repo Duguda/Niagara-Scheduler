@@ -11,6 +11,7 @@
   import Modal from '../components/Modal.svelte';
   import PageToggles from '../components/PageToggles.svelte';
   import { openGuide } from '../lib/guide.svelte';
+  import { checkForUpdate, installUpdate, updater } from '../lib/updater.svelte';
   import { api, type BackupManifest, type IcsPreview, type StorageInfo } from '../lib/api';
   import { folderName, MEMO_DIR_KEY, READ_DIRS_KEY, readDirsFrom } from '../lib/obsidian';
   import { setDecorating, stickers } from '../lib/stickers.svelte';
@@ -596,7 +597,13 @@
           <p class="muted small">{t('set.aboutBody', { v: `v${__APP_VERSION__}` })}</p>
         </div>
       </div>
-      <button class="btn guide-btn" onclick={openGuide}><BookOpen size={15} /> {t('guide.reopen')}</button>
+      <div class="about-actions">
+        <button class="btn" onclick={() => (updater.available ? installUpdate() : checkForUpdate())} disabled={updater.checking || updater.installing}>
+          <RefreshCw size={15} />
+          {updater.installing ? t('upd.downloading') : updater.available ? t('upd.installV', { v: updater.available }) : updater.checking ? t('upd.checking') : t('upd.check')}
+        </button>
+        <button class="btn" onclick={openGuide}><BookOpen size={15} /> {t('guide.reopen')}</button>
+      </div>
     </section>
 
     <details class="card danger-zone">
@@ -727,7 +734,10 @@
     gap: 14px;
     margin-bottom: 18px;
   }
-  .guide-btn {
+  .about-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     margin: 18px 0 2px;
   }
   .about .section-head {

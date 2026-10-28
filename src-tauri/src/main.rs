@@ -3,6 +3,7 @@
 mod backup;
 mod brief;
 mod bookmarks;
+mod cloze;
 mod commands;
 mod commissions;
 mod db;
@@ -124,6 +125,10 @@ fn main() {
             commands::export_memo_to_obsidian,
             commands::refresh_brief,
             commands::storage_info,
+            commands::cloze_sources,
+            commands::cloze_stats,
+            commands::cloze_record,
+            commands::cloze_reset,
             commands::export_data,
             commands::inspect_backup,
             commands::import_data,

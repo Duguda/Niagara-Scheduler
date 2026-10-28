@@ -35,6 +35,7 @@
     pomodoro: () => import('./pages/Pomodoro.svelte'),
     memos: () => import('./pages/Memos.svelte'),
     notes: () => import('./pages/Notes.svelte'),
+    study: () => import('./pages/Study.svelte'),
     diary: () => import('./pages/Diary.svelte'),
     tracking: () => import('./pages/Tracking.svelte'),
     analytics: () => import('./pages/Analytics.svelte'),

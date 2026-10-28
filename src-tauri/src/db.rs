@@ -216,6 +216,18 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS cloze_stats (
+    key        TEXT PRIMARY KEY,
+    source     TEXT    NOT NULL,
+    right      INTEGER NOT NULL DEFAULT 0,
+    wrong      INTEGER NOT NULL DEFAULT 0,
+    last_right INTEGER NOT NULL DEFAULT 0,
+    box        INTEGER NOT NULL DEFAULT 1,
+    due        TEXT    NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cloze_source ON cloze_stats(source);
 "#;
 
 pub fn now_ts() -> i64 {

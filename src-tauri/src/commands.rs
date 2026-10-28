@@ -450,6 +450,81 @@ pub fn refresh_brief(state: State<AppState>) -> CmdResult<String> {
     crate::brief::refresh(&db, &state.storage.brief).map(|p| p.to_string_lossy().into_owned())
 }
 
+// ---- cloze study ---------------------------------------------------------------------
+
+#[derive(serde::Serialize)]
+pub struct ClozeSource {
+    /// `ob:<vault path>` or `memo:<id>`.
+    pub source: String,
+    pub title: String,
+    /// Folder for notes, memo group for memos ('' when none).
+    pub place: String,
+    /// Number of bold spans (blanks).
+    pub blanks: usize,
+    pub due: i64,
+    pub weak: i64,
+    pub seen: i64,
+}
+
+/// Notes and memos that have `**bold**` text to study, with today's review counts.
+#[tauri::command]
+pub async fn cloze_sources(state: State<'_, AppState>) -> CmdResult<Vec<ClozeSource>> {
+    let today = crate::cloze::today();
+    let (memos, groups, overview, vault) = with_db(&state, |db| {
+        Ok((db.memos()?, db.memo_groups()?, db.cloze_overview(today)?, db.setting(crate::obsidian::VAULT_KEY)?))
+    })?;
+    let stats = crate::cloze::by_source(overview);
+    let group_name: std::collections::HashMap<i64, String> = groups.into_iter().map(|g| (g.id, g.name)).collect();
+    let with_stats = |source: String, title: String, place: String, blanks: usize| {
+        let s = stats.get(&source);
+        ClozeSource {
+            title,
+            place,
+            blanks,
+            due: s.map_or(0, |s| s.due),
+            weak: s.map_or(0, |s| s.weak),
+            seen: s.map_or(0, |s| s.seen),
+            source,
+        }
+    };
+    let mut out: Vec<ClozeSource> = memos
+        .into_iter()
+        .filter_map(|m| {
+            let blanks = crate::cloze::count_bold(&m.body);
+            let place = m.group_id.and_then(|g| group_name.get(&g).cloned()).unwrap_or_default();
+            (blanks > 0).then(|| with_stats(format!("memo:{}", m.id), m.title, place, blanks))
+        })
+        .collect();
+    if let Some(root) = vault.filter(|v| !v.trim().is_empty()) {
+        let root = std::path::PathBuf::from(root);
+        let notes = tauri::async_runtime::spawn_blocking(move || crate::obsidian::bold_notes(&root))
+            .await
+            .map_err(|e| e.to_string())?
+            .unwrap_or_default();
+        out.extend(notes.into_iter().map(|(n, blanks)| with_stats(format!("ob:{}", n.path), n.title, n.folder, blanks)));
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn cloze_stats(state: State<AppState>, source: String) -> CmdResult<Vec<crate::cloze::ClozeStat>> {
+    with_db(&state, |db| db.cloze_stats(&source))
+}
+
+/// Saves a ○ (`right: true`) or ✕ for one blank.
+#[tauri::command]
+pub fn cloze_record(state: State<AppState>, source: String, key: String, right: bool) -> CmdResult<crate::cloze::ClozeStat> {
+    if !key.starts_with(&format!("{source}|")) {
+        return Err("invalid blank".into());
+    }
+    with_db(&state, |db| db.cloze_record(&source, &key, right, crate::cloze::today()))
+}
+
+#[tauri::command]
+pub fn cloze_reset(state: State<AppState>, source: String) -> CmdResult<()> {
+    with_db(&state, |db| db.cloze_reset(&source))
+}
+
 // ---- storage -------------------------------------------------------------------------
 
 #[derive(serde::Serialize)]

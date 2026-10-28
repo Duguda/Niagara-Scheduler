@@ -252,6 +252,30 @@ export interface BackupManifest {
   counts: { events: number; todos: number; memos: number; ddays: number; bookmarks: number; expenses: number; books?: number; meals?: number; workouts?: number; commissions?: number; diary?: number; images: number };
 }
 
+/** A note or memo with **bold** text to study (see src-tauri/src/cloze.rs). */
+export interface ClozeSource {
+  /** `ob:<vault path>` or `memo:<id>`. */
+  source: string;
+  title: string;
+  /** Note folder or memo group ('' when none). */
+  place: string;
+  blanks: number;
+  due: number;
+  weak: number;
+  seen: number;
+}
+
+/** The record of one blank. */
+export interface ClozeStat {
+  /** `<source>|<answer>|<occurrence>`. */
+  key: string;
+  right: number;
+  wrong: number;
+  last_right: boolean;
+  box_no: number;
+  due: DateStr;
+}
+
 /** Niagara's folders (see src-tauri/src/storage.rs). */
 export interface StorageInfo {
   base: string;
@@ -423,6 +447,10 @@ export const api = {
   exportMemoToObsidian: (id: number) => invoke<string>('export_memo_to_obsidian', { id }),
   refreshBrief: () => invoke<string>('refresh_brief'),
   storageInfo: () => invoke<StorageInfo>('storage_info'),
+  clozeSources: () => invoke<ClozeSource[]>('cloze_sources'),
+  clozeStats: (source: string) => invoke<ClozeStat[]>('cloze_stats', { source }),
+  clozeRecord: (source: string, key: string, right: boolean) => invoke<ClozeStat>('cloze_record', { source, key, right }),
+  clozeReset: (source: string) => invoke<void>('cloze_reset', { source }),
 
   memos: () => invoke<Memo[]>('memos'),
   createMemo: (title: string, groupId: number | null = null) => invoke<number>('create_memo', { title, groupId }),

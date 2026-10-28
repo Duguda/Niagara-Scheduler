@@ -2,8 +2,8 @@
 // Loaded from main.ts only when `import.meta.env.DEV` and Tauri is absent.
 // Supports `?page=todos&theme=dark` to open a specific page.
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
-import type { Activity, Bookmark, BookmarkFolder, CalEvent, DDay, Commission, CommissionClient, DiaryEntry, Expense, Meal, Memo, MemoGroup, Workout, PomodoroSession, Tag, Todo, TodoGroup, Book } from './api';
-import { addDays, addMinutes, addMonths, dayStartTs, diffDays, eventSpan, parseYmd, timeOf, today, toDateTime } from './dates';
+import type { Activity, Bookmark, BookmarkFolder, CalEvent, DDay, Commission, CommissionClient, DiaryEntry, Expense, Meal, Memo, MemoGroup, Workout, PomodoroSession, Tag, Todo, TodoGroup, Book, ClozeStat } from './api';
+import { addDays, addMinutes, addMonths, dayStartTs, diffDays, eventSpan, parseYmd, timeOf, today, toDateTime, ymd } from './dates';
 
 /** Mirrors src-tauri/src/recurrence.rs (dev preview only). */
 function occurrences(first: string, r: NonNullable<CalEvent['repeat']>, from: string, to: string): string[] {
@@ -185,11 +185,16 @@ export function installMock() {
     book(3007, 'Klara and the Sun', 'Kazuo Ishiguro', 'want'),
   ];
   const settings: Record<string, string> = { 'expense.currency': 'KRW', 'expense.budget': '1200000', 'obsidian.vault': 'D:\\Notes\\Vault' };
+  // Cloze records for the study page preview: one blank already weak and due today.
+  const cloze: Record<string, ClozeStat> = {
+    'ob:10 Study/네트워크관리사.md|255.255.255.0|0': { key: 'ob:10 Study/네트워크관리사.md|255.255.255.0|0', right: 0, wrong: 1, last_right: false, box_no: 1, due: ymd(new Date()) },
+  };
   // A tiny Obsidian vault for the browser preview of the Obsidian page.
   const vaultNotes: Record<string, string> = {
     'Home.md': '---\ntags: [hub]\n---\n# Home\n\nStudy hub. See [[SQL 정리]] and [[Network|network notes]].\n\n> [!tip] Today\n> Review ==JOIN== before the exam.\n\n![[diagram.png]]',
     '10 Study/SQL 정리.md': '# SQL 정리\n\n- [x] SELECT\n- [ ] JOIN\n\n> [!warning] 주의\n> GROUP BY 다음에 HAVING.\n\n```sql\nSELECT * FROM t; -- [[not a link]]\n```\n\nBack to [[Home]]. Also [network](Network.md).\n\n![chart](img/chart.png)',
     '10 Study/Network.md': '# Network\n\nOSI 7 layers.',
+    '10 Study/네트워크관리사.md': '# 네트워크관리사 2급 핵심\n\nOSI 7계층 중 라우팅을 담당하는 계층은 **네트워크 계층**이다. 스위치는 **데이터 링크 계층**에서 동작한다.\n\n- C 클래스 기본 서브넷 마스크: **255.255.255.0**\n- TCP 연결 수립: **3-way handshake**\n- DNS 기본 포트: **53**\n\n> [!tip] 헷갈림\n> UDP 포트 **53**도 DNS가 쓴다.',
     '20 Daily/2026-10-28.md': 'Ran 5km.',
   };
   const previewLocale = new URLSearchParams(location.search).get('locale');
@@ -215,6 +220,26 @@ export function installMock() {
       }
       case 'obsidian_open_url': return 'obsidian://open?path=' + encodeURIComponent(a.path);
       case 'export_memo_to_obsidian': return 'Niagara/' + (memos.find((m) => m.id === a.id)?.title ?? 'Untitled') + '.md';
+      case 'cloze_sources':
+        return [
+          ...memos.filter((m) => m.body.includes('**')).map((m) => ({ source: `memo:${m.id}`, title: m.title, place: '', blanks: (m.body.match(/\*\*[^*]+\*\*/g) ?? []).length, due: 0, weak: 0, seen: 0 })),
+          ...Object.entries(vaultNotes).filter(([, text]) => text.includes('**')).map(([path, text]) => ({
+            source: `ob:${path}`, title: path.split('/').pop()!.replace(/\.md$/, ''), place: path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '',
+            blanks: (text.match(/\*\*[^*]+\*\*/g) ?? []).length,
+            due: Object.values(cloze).filter((c) => c.key.startsWith(`ob:${path}|`) && c.due <= ymd(new Date())).length,
+            weak: Object.values(cloze).filter((c) => c.key.startsWith(`ob:${path}|`) && !c.last_right).length,
+            seen: Object.values(cloze).filter((c) => c.key.startsWith(`ob:${path}|`)).length,
+          })),
+        ];
+      case 'cloze_stats': return Object.values(cloze).filter((c) => c.key.startsWith(`${a.source}|`));
+      case 'cloze_record': {
+        const prev = cloze[a.key];
+        const box = a.right ? Math.min((prev?.box_no ?? 1) + 1, 5) : 1;
+        const d = new Date(); d.setDate(d.getDate() + (a.right ? [1, 2, 4, 8, 16][box - 1] : 1));
+        cloze[a.key] = { key: a.key, right: (prev?.right ?? 0) + (a.right ? 1 : 0), wrong: (prev?.wrong ?? 0) + (a.right ? 0 : 1), last_right: a.right, box_no: box, due: ymd(d) };
+        return cloze[a.key];
+      }
+      case 'cloze_reset': for (const k of Object.keys(cloze)) if (k.startsWith(`${a.source}|`)) delete cloze[k]; return null;
       case 'storage_info': return { base: 'D:\\Program Files\\Niagara Scheduler', data: 'D:\\Program Files\\Niagara Scheduler\\data', brief: 'D:\\Program Files\\Niagara Scheduler\\brief', portable: true };
       case 'refresh_brief': return 'C:\\Users\\me\\AppData\\Roaming\\com.niagara.scheduler\\brief.json';
       case 'events_between': {

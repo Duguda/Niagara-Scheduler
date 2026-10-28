@@ -534,7 +534,7 @@ pub async fn cloze_sources(state: State<'_, AppState>) -> CmdResult<Vec<ClozeSou
             }
             let blanks = crate::cloze::count_bold(&m.body);
             let place = m.group_id.and_then(|g| group_name.get(&g).cloned()).unwrap_or_default();
-            (blanks > 0).then(|| with_stats(format!("memo:{}", m.id), m.title, place, blanks))
+            Some(with_stats(format!("memo:{}", m.id), m.title, place, blanks))
         })
         .collect();
     let roots = note_roots(&state)?;

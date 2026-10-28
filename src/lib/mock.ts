@@ -197,6 +197,7 @@ export function installMock() {
     '10 Study/Network.md': '# Network\n\nOSI 7 layers.',
     '10 Study/네트워크관리사.md': '# 네트워크관리사 2급 핵심 #암기\n\nOSI 7계층 중 라우팅을 담당하는 계층은 **네트워크 계층**이다. 스위치는 **데이터 링크 계층**에서 동작한다.\n\n- C 클래스 기본 서브넷 마스크: **255.255.255.0**\n- TCP 연결 수립: **3-way handshake**\n- DNS 기본 포트: **53**\n\n> [!tip] 헷갈림\n> UDP 포트 **53**도 DNS가 쓴다.',
     '20 Daily/2026-10-28.md': 'Ran 5km.',
+    '40 Script/발표 대본.md': '# 발표 대본 #암기\n\n지금부터 발표를 시작하겠습니다. 오늘은 세 가지를 이야기합니다.\n\n## 1. 배경\n\n1948년 5월 10일 최초의 민주적 선거가 치러졌고, **8월 15일** 정부가 수립되었습니다.\n\n## 2. 핵심\n\n자유민주주의와 시장경제체제는 지난 50년간 유례없는 발전을 이뤘습니다.\n\n## 3. 결론\n\n정리하면, 우리는 자유와 평화를 지키는 국가대표입니다.',
     '30 Inbox/강의 메모.txt': '운영체제 3주차\n\n- 프로세스 vs 스레드\n- 문맥 교환 비용\n\n# 이건 txt라 제목 서식이 아니에요',
   };
   const noteTimes: Record<string, number> = {};
@@ -246,7 +247,7 @@ export function installMock() {
       case 'cloze_sources':
         return [
           ...memos.filter((m) => m.body.includes('**') && m.body.includes('#암기')).map((m) => ({ source: `memo:${m.id}`, title: m.title, place: '', blanks: (m.body.match(/\*\*[^*]+\*\*/g) ?? []).length, due: 0, weak: 0, seen: 0 })),
-          ...Object.entries(vaultNotes).filter(([, text]) => text.includes('**') && text.includes('#암기')).map(([path, text]) => ({
+          ...Object.entries(vaultNotes).filter(([, text]) => text.includes('#암기')).map(([path, text]) => ({
             source: `obx:${VAULT}|${path}`, title: path.split('/').pop()!.replace(/\.md$/, ''), place: 'Vault' + (path.includes('/') ? '/' + path.slice(0, path.lastIndexOf('/')) : ''),
             blanks: (text.match(/\*\*[^*]+\*\*/g) ?? []).length,
             due: Object.values(cloze).filter((c) => c.key.startsWith(`obx:${VAULT}|${path}|`) && c.due <= ymd(new Date())).length,

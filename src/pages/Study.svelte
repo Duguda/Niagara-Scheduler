@@ -1,13 +1,15 @@
 <script lang="ts">
   // Cloze study (retrieval practice): the **bold** parts of a note or memo are hidden. Say the answer
   // first, reveal it, then mark yourself ○ or ✕. Records and review days live in cloze.rs.
+  // n-reading hides a quarter of all words per reading instead (not recorded; the reading number is
+  // kept per note), and the note can be studied by `##` block or built up block by block.
   import { onMount, tick } from 'svelte';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
-  import { Brain, ChevronDown, ChevronRight, Eye, EyeOff, Folder, NotebookPen, NotebookText, RotateCcw, Search } from '@lucide/svelte';
+  import { Brain, ChevronDown, ChevronRight, Eye, EyeOff, Folder, Layers, NotebookPen, NotebookText, Plus, RotateCcw, Search, SkipForward } from '@lucide/svelte';
   import ConfirmButton from '../components/ConfirmButton.svelte';
   import { api, type ClozeSource, type ClozeStat } from '../lib/api';
-  import { clozeHtml, hiddenIn, isDue, isWeak, type BlankState, type StudyMode } from '../lib/cloze';
+  import { clozeHtml, GROUPS, hiddenIn, hiddenInRound, isDue, isWeak, studyHtml, type BlankState, type StudyBlock, type StudyMode } from '../lib/cloze';
   import { today as todayStr } from '../lib/dates';
   import { t } from '../lib/i18n.svelte';
   import { renderNote } from '../lib/obsidian';
@@ -23,6 +25,15 @@
   let keys = $state<string[]>([]);
   let stats = $state<Record<string, ClozeStat>>({});
   let mode = $state<StudyMode>('all');
+  /** 'key': the bold blanks (recorded) · 'round': n-reading over all words (not recorded). */
+  let hide = $state<'key' | 'round'>('key');
+  let round = $state(1);
+  /** '' = whole note · 'stack' = blocks 0..stage · a number = one block. */
+  let scope = $state<'' | 'stack' | number>('');
+  let stage = $state(0);
+  let blocks = $state<StudyBlock[]>([]);
+  let order = $state<{ key: string; block: number; word: boolean }[]>([]);
+  const progressKey = (source: string) => `study.progress:${source}`;
   /** This sitting only; records are saved as each mark is made. */
   const states = new Map<string, BlankState>();
   let tallyVersion = $state(0);
@@ -47,7 +58,14 @@
     return [...map.values()].sort((a, b) => Number(a.memo) - Number(b.memo) || a.id.localeCompare(b.id));
   });
   let collapsed = $state<Record<string, boolean>>({});
-  const inScope = $derived(keys.filter((k) => hiddenIn(mode, stats[k], today)));
+  const blockShown = (b: number) => scope === '' || (scope === 'stack' ? b <= stage : b === scope);
+  function isHidden(x: { key: string; word: boolean }): boolean {
+    if (hide === 'round' && mode === 'all') return hiddenInRound(x.key, round);
+    return !x.word && hiddenIn(mode, stats[x.key], today);
+  }
+  const inScope = $derived(order.filter((x) => blockShown(x.block) && isHidden(x)).map((x) => x.key));
+  /** Bold blanks (`<source>|<answer>|<n>`) are recorded; word blanks (`w<n>`) are not. */
+  const recorded = (key: string) => key.includes('|');
   const tally = $derived.by(() => {
     tallyVersion;
     let right = 0;
@@ -87,12 +105,17 @@
       }
       const list = await api.clozeStats(s.source);
       const cloze = clozeHtml(rendered, s.source);
+      const study = studyHtml(cloze.html);
       stats = Object.fromEntries(list.map((x) => [x.key, x]));
       states.clear();
       keys = cloze.keys;
-      html = cloze.html;
+      blocks = study.blocks;
+      order = study.order;
+      html = study.html;
       current = s;
       mode = startMode ?? (s.due > 0 ? 'due' : 'all');
+      await loadProgress(s.source);
+      if (!keys.length && mode === 'all') hide = 'round';
       await paint();
       focusNext();
     } catch (e) {
@@ -107,18 +130,20 @@
     await tick();
     if (!doc) return;
     doc.querySelectorAll('.judge').forEach((j) => j.remove());
+    for (const sec of doc.querySelectorAll<HTMLElement>('.blk')) sec.hidden = !blockShown(Number(sec.dataset.bi));
     for (const el of doc.querySelectorAll<HTMLButtonElement>('.blank')) paintOne(el);
     tallyVersion++;
   }
 
   function paintOne(el: HTMLButtonElement) {
     const key = el.dataset.key!;
-    const hidden = hiddenIn(mode, stats[key], today);
+    const word = el.classList.contains('word');
+    const hidden = isHidden({ key, word });
     const st = states.get(key) ?? 'hidden';
-    el.className = 'blank';
+    el.className = word ? 'blank word' : 'blank';
     if (el.nextElementSibling?.classList.contains('judge')) el.nextElementSibling.remove();
     if (!hidden) {
-      el.classList.add('given');
+      el.classList.add(word ? 'plain' : 'given');
       el.tabIndex = -1;
       el.setAttribute('aria-label', el.textContent ?? '');
       return;
@@ -152,6 +177,8 @@
     if (!current) return;
     setState(key, right ? 'right' : 'wrong');
     focusNext(key);
+    // n-reading marks only count for this reading; the bold blanks keep their review record.
+    if (hide === 'round' || !recorded(key)) return;
     try {
       stats[key] = await api.clozeRecord(current.source, key, right);
     } catch (e) {
@@ -181,7 +208,7 @@
       return;
     }
     const blank = target.closest<HTMLButtonElement>('.blank');
-    if (blank && !blank.classList.contains('given')) {
+    if (blank && !blank.classList.contains('given') && !blank.classList.contains('plain')) {
       reveal(blank.dataset.key!);
       return;
     }
@@ -202,6 +229,61 @@
       mark(openKey, false);
     }
   }
+
+  async function loadProgress(source: string) {
+    const saved = await api.getSetting(progressKey(source)).catch(() => null);
+    let p: { hide?: string; round?: number; stage?: number } = {};
+    try {
+      p = JSON.parse(saved ?? '{}');
+    } catch {
+      p = {};
+    }
+    hide = p.hide === 'round' ? 'round' : 'key';
+    round = Math.max(1, Math.floor(p.round ?? 1));
+    stage = Math.min(Math.max(0, Math.floor(p.stage ?? 0)), Math.max(0, blocks.length - 1));
+    scope = '';
+  }
+
+  function saveProgress() {
+    if (!current) return;
+    api.setSetting(progressKey(current.source), JSON.stringify({ hide, round, stage })).catch(() => {});
+  }
+
+  async function setHide(h: 'key' | 'round') {
+    hide = h;
+    if (h === 'round') mode = 'all';
+    states.clear();
+    saveProgress();
+    await paint();
+    focusNext();
+  }
+
+  async function nextRound(by = 1) {
+    round = by === 0 ? 1 : round + by;
+    states.clear();
+    saveProgress();
+    await paint();
+    doc?.scrollTo({ top: 0, behavior: 'smooth' });
+    focusNext();
+  }
+
+  async function setScope(s: '' | 'stack' | number) {
+    scope = s;
+    states.clear();
+    await paint();
+    focusNext();
+  }
+
+  async function addBlock(reset = false) {
+    stage = reset ? 0 : Math.min(stage + 1, blocks.length - 1);
+    states.clear();
+    saveProgress();
+    await paint();
+    doc?.querySelector(`.blk[data-bi="${stage}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    focusNext();
+  }
+
+  const blockLabel = (b: StudyBlock, i: number) => b.title || (i === 0 ? t('study.intro') : `${i + 1}`);
 
   async function setMode(m: StudyMode) {
     mode = m;
@@ -236,7 +318,7 @@
   }
 
   const counts = $derived({
-    all: keys.length,
+    all: hide === 'round' ? order.filter((x) => blockShown(x.block) && hiddenInRound(x.key, round)).length : keys.length,
     due: keys.filter((k) => isDue(stats[k], today)).length,
     weak: keys.filter((k) => isWeak(stats[k])).length,
   });
@@ -272,7 +354,7 @@
                 <span class="truncate">{s.title || t('common.untitled')}</span>
               </span>
               <span class="s-meta">
-                <span class="faint">{t('study.blanks', { n: s.blanks })}</span>
+                <span class="faint">{s.blanks ? t('study.blanks', { n: s.blanks }) : t('study.roundOnly')}</span>
                 <span class="tags">
                   {#if s.due}<span class="due">{t('study.due', { n: s.due })}</span>{/if}
                   {#if s.weak}<span class="weak">{t('study.weak', { n: s.weak })}</span>{/if}
@@ -297,12 +379,45 @@
     {:else}
       <div class="toolbar">
         <h1 class="title-view truncate">{current.title || t('common.untitled')}</h1>
-        <div class="segmented">
-          <button class:active={mode === 'all'} onclick={() => setMode('all')}>{t('study.modeAll')} <span class="n">{counts.all}</span></button>
-          <button class:active={mode === 'due'} onclick={() => setMode('due')} disabled={!counts.due}>{t('study.modeDue')} <span class="n">{counts.due}</span></button>
-          <button class:active={mode === 'weak'} onclick={() => setMode('weak')} disabled={!counts.weak}>{t('study.modeWeak')} <span class="n">{counts.weak}</span></button>
+        <div class="segmented" role="group" aria-label={t('study.hideHow')}>
+          <button class:active={hide === 'key'} onclick={() => setHide('key')} disabled={!keys.length}>{t('study.hideKey')}</button>
+          <button class:active={hide === 'round'} onclick={() => setHide('round')}>{t('study.hideRound')}</button>
         </div>
       </div>
+      <div class="controls">
+        {#if hide === 'key'}
+          <div class="segmented">
+            <button class:active={mode === 'all'} onclick={() => setMode('all')}>{t('study.modeAll')} <span class="n">{counts.all}</span></button>
+            <button class:active={mode === 'due'} onclick={() => setMode('due')} disabled={!counts.due}>{t('study.modeDue')} <span class="n">{counts.due}</span></button>
+            <button class:active={mode === 'weak'} onclick={() => setMode('weak')} disabled={!counts.weak}>{t('study.modeWeak')} <span class="n">{counts.weak}</span></button>
+          </div>
+        {:else}
+          <span class="round-now">{t('study.roundNow', { n: round, cycle: Math.floor((round - 1) / GROUPS) + 1, pos: ((round - 1) % GROUPS) + 1, total: GROUPS })}</span>
+          <button class="btn small primary" onclick={() => nextRound()}><SkipForward size={14} /> {t('study.nextRound')}</button>
+          {#if round > 1}<button class="btn small ghost" onclick={() => nextRound(0)}>{t('study.resetRound')}</button>{/if}
+          <span class="faint small round-hint">{t('study.roundHint', { n: GROUPS })}</span>
+        {/if}
+      </div>
+      {#if blocks.length > 1}
+        <nav class="chips" aria-label={t('study.blocks')}>
+          <button class="chip" class:on={scope === ''} onclick={() => setScope('')}>{t('study.scopeAll')}</button>
+          <button class="chip" class:on={scope === 'stack'} onclick={() => setScope('stack')}><Layers size={13} /> {t('study.stack')}</button>
+          {#each blocks as b, i (i)}
+            <button class="chip" class:on={scope === i} onclick={() => setScope(i)} title={blockLabel(b, i)}><span class="truncate">{blockLabel(b, i)}</span></button>
+          {/each}
+        </nav>
+        {#if scope === 'stack'}
+          <div class="controls">
+            <span class="round-now">{t('study.stackNow', { name: blockLabel(blocks[stage], stage), n: stage + 1, total: blocks.length })}</span>
+            {#if stage < blocks.length - 1}
+              <button class="btn small primary" onclick={() => addBlock()}><Plus size={14} /> {t('study.addBlock', { name: blockLabel(blocks[stage + 1], stage + 1) })}</button>
+            {:else}
+              <span class="faint small">{t('study.allStacked')}</span>
+            {/if}
+            {#if stage > 0}<button class="btn small ghost" onclick={() => addBlock(true)}>{t('study.stackReset')}</button>{/if}
+          </div>
+        {/if}
+      {/if}
       <div class="bar">
         <span class="score">
           <span>○ <b class="o">{tally.right}</b></span>
@@ -324,7 +439,9 @@
       {#if tally.left === 0 && inScope.length}
         <div class="done">
           <span>{t('study.doneLine', { o: tally.right, x: tally.wrong })}</span>
-          {#if tally.wrong}<button class="btn small" onclick={() => { finishSource(); setMode('weak'); }}><RotateCcw size={14} /> {t('study.againWeak')}</button>{/if}
+          {#if hide === 'round'}
+            <button class="btn small primary" onclick={() => nextRound()}><SkipForward size={14} /> {t('study.nextRound')}</button>
+          {:else if tally.wrong}<button class="btn small" onclick={() => { finishSource(); setMode('weak'); }}><RotateCcw size={14} /> {t('study.againWeak')}</button>{/if}
           <button class="btn small primary" onclick={finishSource}>{t('study.finish')}</button>
         </div>
       {/if}
@@ -494,6 +611,62 @@
     font-size: 26px;
     font-weight: 750;
     letter-spacing: -0.02em;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .round-now {
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .round-hint {
+    flex: 1;
+    min-width: 200px;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 220px;
+    padding: 4px 11px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .chip.on {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-text);
+  }
+  .reading :global(.blank.word.plain) {
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-weight: inherit;
+    cursor: text;
+    user-select: text;
+  }
+  .reading :global(.blank.word) {
+    font-weight: inherit;
+  }
+  .reading :global(section.blk + section.blk) {
+    margin-top: 6px;
   }
   .segmented .n {
     font-size: 11px;

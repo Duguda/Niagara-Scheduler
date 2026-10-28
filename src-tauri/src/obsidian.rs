@@ -161,8 +161,8 @@ pub fn study_notes(root: &Path) -> io::Result<Vec<(NoteMeta, usize)>> {
             if !crate::cloze::has_study_tag(&text) || is_any_memo_note(&text) {
                 return None;
             }
-            let count = crate::cloze::count_bold(&text);
-            (count > 0).then_some((n, count))
+            // A tagged note with no bold still counts: it can be studied in the n-reading mode.
+            Some((n, crate::cloze::count_bold(&text)))
         })
         .collect())
 }

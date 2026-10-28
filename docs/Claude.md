@@ -61,7 +61,7 @@ docs/                이 문서들
 - v0.7.0: 저장 구조 개편(설치 폴더 data·brief), brief.schema.json, 설정의 저장 위치 카드
 - v0.6.x: 옵시디언 노트 페이지, 메모 → 옵시디언 보내기, 모닝 브리프 파일, Windows 자동 빌드
 - 검증: `npm run check` 오류 0, `npm run build` 통과, `cargo test` 63개 통과, 브라우저 미리보기(Playwright)로 화면·뒤로 가기·링크 확인
-- Windows CI 빌드: main push마다 아티팩트(zip), `v*` 태그 push 시 GitHub Release에 setup.exe 공개하는 단계 준비됨 (태그는 아직 없음). 실제 PC 확인은 아직
+- Windows CI 빌드: main push마다 아티팩트(zip), `v*` 태그 push 시 GitHub Release에 setup.exe 공개 (로그인 불필요). 첫 릴리스 v0.11.0. 실제 PC 확인은 아직
 - 알파 테스트 화면: 예시 데이터 미리보기를 claude.ai 아티팩트로 공개(비공개 링크). `npm run preview:build` 결과를 올림
 - GitHub: Duguda/Niagara-Scheduler main에 push (리모트 `origin`, 원작은 `upstream`)
 - 공개 레포라 커밋 작성자는 `Duguda <74199426+Duguda@users.noreply.github.com>`만 사용. 실명·개인 이메일을 레포에 넣지 않는다
@@ -82,7 +82,8 @@ docs/                이 문서들
 | 2026-10-28 | 레포 공개 유지, 작성자·저작권 표기는 Duguda로 | 채택 | 공개 포크는 원작자에게 영향 없음. 실명·이메일 노출만 막음 |
 | 2026-10-28 | 옵시디언은 읽기 전용 + 메모 내보내기(한 방향)부터 | 채택 | 양방향 동기화는 충돌 처리 위험이 큼. 노트 수정은 옵시디언에서 |
 | 2026-10-28 | 모닝 브리프는 DB 직접 읽기 대신 `brief.json` 제공 | 채택 | 반복 일정 펼치기를 앱이 처리, 민감 데이터(일기·가계부·외주·추적)를 구조적으로 제외 |
-| 2026-10-28 | Windows 설치 파일은 GitHub Actions Artifacts로만 배포, Release는 만들지 않음 | 채택 | 개인용. 공개 릴리스는 필요할 때 따로 결정 |
+| 2026-10-28 | Windows 설치 파일은 GitHub Actions Artifacts로만 배포, Release는 만들지 않음 | 변경 | 아래 줄로 대체 |
+| 2026-10-28 | 버전 태그(`v*`)를 push하면 GitHub Release에 setup.exe 공개 | 채택 | 아티팩트는 zip이고 로그인이 필요해서 찾기 번거로움. Nora처럼 exe를 바로 받게, 공개 릴리스는 사용자 승인 |
 | 2026-10-28 | 구글 드라이브 경유(복사본 폴더) | 미채택 | 외부 서비스·용량에 기대지 않음. Niagara는 로컬에만 두고 Claude가 PC에서 직접 읽는 방향 |
 | 2026-10-28 | 데이터를 설치 폴더에 용도별(data·brief)로 저장 | 채택 | 한 폴더만 허락하면 Claude가 읽을 수 있음. Tauri 언인스톨러는 설치한 파일만 지워 data가 남음 (AppData는 '앱 데이터 삭제' 체크 시 통째로 지워짐) |
 | 2026-10-28 | 브리프 구조를 brief.schema.json으로 분리 제공 | 채택 | 읽는 쪽이 필드 뜻을 따로 불러옴. version 필드로 변경 구분, 테스트로 코드와 일치 보장 |

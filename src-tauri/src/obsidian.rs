@@ -16,6 +16,25 @@ pub const VAULT_KEY: &str = "obsidian.vault";
 /// Setting that stores the vault-relative folder memos are written to.
 pub const EXPORT_DIR_KEY: &str = "obsidian.exportDir";
 pub const DEFAULT_EXPORT_DIR: &str = "Niagara";
+/// Setting: extra folders the Notes page reads (JSON list of absolute paths), besides the vault.
+pub const READ_DIRS_KEY: &str = "notes.readDirs";
+/// Setting: `"0"` turns off saving memos into the vault automatically.
+pub const AUTO_SAVE_KEY: &str = "notes.autoSave";
+
+pub fn parse_read_dirs(json: Option<&str>) -> Vec<String> {
+    json.and_then(|j| serde_json::from_str::<Vec<String>>(j).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|d| d.trim().to_string())
+        .filter(|d| !d.is_empty())
+        .collect()
+}
+
+/// How a note from an extra read folder is grouped: `<folder name>/<sub-folder>`.
+pub fn root_label(root: &str, folder: &str) -> String {
+    let name = Path::new(root).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| root.to_string());
+    if folder.is_empty() { name } else { format!("{name}/{folder}") }
+}
 
 /// Big vaults are fine, but the list stays bounded.
 const MAX_NOTES: usize = 5000;
@@ -26,6 +45,8 @@ const MEMO_KEY: &str = "niagara_memo";
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct NoteMeta {
+    /// Which read folder the note is in: `""` for the vault, otherwise that folder's path.
+    pub root: String,
     /// Path inside the vault with `/` separators, e.g. `10 공부/SQL.md`.
     pub path: String,
     /// File name without `.md`, which is the note's title in Obsidian.
@@ -85,7 +106,7 @@ pub fn list(root: &Path) -> io::Result<Vec<NoteMeta>> {
                     .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                     .map(|d| d.as_secs() as i64)
                     .unwrap_or(0);
-                notes.push(NoteMeta { path: rel_path, title, folder, modified, size: meta.len() });
+                notes.push(NoteMeta { root: String::new(), path: rel_path, title, folder, modified, size: meta.len() });
             }
         }
     }
@@ -131,7 +152,8 @@ pub fn study_notes(root: &Path) -> io::Result<Vec<(NoteMeta, usize)>> {
         .filter_map(|n| {
             let text = fs::read(root.join(&n.path)).ok()?;
             let text = String::from_utf8_lossy(&text);
-            if !crate::cloze::has_study_tag(&text) {
+            // Memos copied into the vault are studied as memos, not twice.
+            if !crate::cloze::has_study_tag(&text) || is_any_memo_note(&text) {
                 return None;
             }
             let count = crate::cloze::count_bold(&text);
@@ -164,6 +186,12 @@ fn memo_marker(id: i64) -> String {
     format!("{MEMO_KEY}: {id}")
 }
 
+/// True when the note was written from any Niagara memo.
+fn is_any_memo_note(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix("---") else { return false };
+    rest.lines().skip(1).take_while(|l| l.trim() != "---").any(|l| l.trim_start().starts_with(MEMO_KEY))
+}
+
 /// True when the note's front matter says it was written from memo `id`.
 fn is_memo_note(text: &str, id: i64) -> bool {
     let Some(rest) = text.strip_prefix("---") else { return false };
@@ -173,6 +201,24 @@ fn is_memo_note(text: &str, id: i64) -> bool {
 
 fn timestamp(ts: i64) -> String {
     Local.timestamp_opt(ts, 0).single().map(|t| t.format("%Y-%m-%dT%H:%M").to_string()).unwrap_or_default()
+}
+
+/// Markdown files in the memo folder and its group sub-folders (two levels are enough).
+fn memo_files(base: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut dirs = vec![(base.to_path_buf(), 0)];
+    while let Some((dir, depth)) = dirs.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && depth < 2 && !skipped_dir(&entry.file_name().to_string_lossy()) {
+                dirs.push((path, depth + 1));
+            } else if path.is_file() && is_markdown(&path) {
+                out.push(path);
+            }
+        }
+    }
+    out
 }
 
 pub struct MemoNote<'a> {
@@ -188,7 +234,7 @@ pub struct MemoNote<'a> {
 /// Sending the same memo again updates the note it wrote before (found by its front matter),
 /// renaming it if the memo's title changed and the new name is free. Notes the user wrote
 /// themselves are never overwritten: a clashing name gets a number instead.
-pub fn export_memo(root: &Path, dir: &str, memo: &MemoNote) -> Result<String, String> {
+pub fn export_memo(root: &Path, dir: &str, group: Option<&str>, memo: &MemoNote) -> Result<String, String> {
     let dir = dir.trim().trim_matches('/');
     let dir_path = Path::new(dir);
     if dir_path.components().any(|c| !matches!(c, Component::Normal(_))) {
@@ -197,7 +243,12 @@ pub fn export_memo(root: &Path, dir: &str, memo: &MemoNote) -> Result<String, St
     if !root.is_dir() {
         return Err("vault folder not found".into());
     }
-    let target_dir = root.join(dir_path);
+    // The memo folder; a memo in a group goes into a sub-folder named after the group.
+    let base_dir = root.join(dir_path);
+    let target_dir = match group.map(file_stem_for) {
+        Some(g) if !g.is_empty() => base_dir.join(g),
+        _ => base_dir.clone(),
+    };
     fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
 
     let stem = file_stem_for(memo.title);
@@ -209,13 +260,8 @@ pub fn export_memo(root: &Path, dir: &str, memo: &MemoNote) -> Result<String, St
         memo.body.trim_end()
     );
 
-    // A note this memo wrote earlier, if any.
-    let previous = fs::read_dir(&target_dir)
-        .map_err(|e| e.to_string())?
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.is_file() && is_markdown(p))
-        .find(|p| fs::read_to_string(p).is_ok_and(|text| is_memo_note(&text, memo.id)));
+    // A note this memo wrote earlier, anywhere in the memo folder (it may have changed group).
+    let previous = memo_files(&base_dir).into_iter().find(|p| fs::read_to_string(p).is_ok_and(|text| is_memo_note(&text, memo.id)));
 
     // Windows and macOS file names ignore letter case, so "Plan.md" and "plan.md" are one file.
     let same_file = |a: &Path, b: &Path| a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase();
@@ -263,6 +309,9 @@ mod tests {
     fn lists_markdown_notes_and_skips_settings_folders() {
         let root = vault();
         let mut paths: Vec<_> = list(&root).unwrap().into_iter().map(|n| (n.path, n.title, n.folder)).collect();
+        assert_eq!(parse_read_dirs(Some(r#"["D:\\A", " ", "E:\\B"]"#)), vec!["D:\\A".to_string(), "E:\\B".to_string()]);
+        assert_eq!(root_label("/x/Lecture", ""), "Lecture");
+        assert_eq!(root_label("/x/Lecture", "w1"), "Lecture/w1");
         paths.sort();
         assert_eq!(
             paths,
@@ -283,30 +332,35 @@ mod tests {
     #[test]
     fn export_creates_then_updates_and_renames_its_own_note() {
         let root = vault();
-        let rel = export_memo(&root, "Niagara", &memo(7, "회의: 계획", "첫 내용")).unwrap();
+        let rel = export_memo(&root, "Niagara", None, &memo(7, "회의: 계획", "첫 내용")).unwrap();
         assert_eq!(rel, "Niagara/회의 계획.md");
         let text = fs::read_to_string(root.join(&rel)).unwrap();
         assert!(text.starts_with("---\nniagara_memo: 7\n"));
         assert!(text.ends_with("첫 내용\n"));
 
         // Same memo again: same file, new content.
-        let again = export_memo(&root, "Niagara", &memo(7, "회의: 계획", "고친 내용")).unwrap();
+        let again = export_memo(&root, "Niagara", None, &memo(7, "회의: 계획", "고친 내용")).unwrap();
         assert_eq!(again, rel);
         assert!(fs::read_to_string(root.join(&rel)).unwrap().contains("고친 내용"));
 
         // Title changed: the note is renamed, not duplicated.
-        let renamed = export_memo(&root, "Niagara", &memo(7, "새 제목", "x")).unwrap();
+        let renamed = export_memo(&root, "Niagara", None, &memo(7, "새 제목", "x")).unwrap();
         assert_eq!(renamed, "Niagara/새 제목.md");
         assert!(!root.join(&rel).exists());
+
+        // Moved into a group: the same note moves into the group's sub-folder.
+        let grouped = export_memo(&root, "Niagara", Some("자격증"), &memo(7, "새 제목", "x")).unwrap();
+        assert_eq!(grouped, "Niagara/자격증/새 제목.md");
+        assert!(!root.join("Niagara/새 제목.md").exists());
     }
 
     #[test]
     fn export_never_overwrites_a_users_own_note() {
         let root = vault();
-        let rel = export_memo(&root, "10 공부", &memo(1, "SQL", "from memo")).unwrap();
+        let rel = export_memo(&root, "10 공부", None, &memo(1, "SQL", "from memo")).unwrap();
         assert_eq!(rel, "10 공부/SQL 2.md");
         assert_eq!(fs::read_to_string(root.join("10 공부/SQL.md")).unwrap(), "JOIN");
-        assert!(export_memo(&root, "../escape", &memo(2, "x", "y")).is_err());
+        assert!(export_memo(&root, "../escape", None, &memo(2, "x", "y")).is_err());
     }
 
     #[test]

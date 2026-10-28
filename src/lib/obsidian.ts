@@ -8,6 +8,17 @@ import DOMPurify from 'dompurify';
 export const VAULT_KEY = 'obsidian.vault';
 export const EXPORT_DIR_KEY = 'obsidian.exportDir';
 export const DEFAULT_EXPORT_DIR = 'Niagara';
+/** Extra folders the Notes page reads besides the vault (JSON list of paths). */
+export const READ_DIRS_KEY = 'notes.readDirs';
+/** '0' turns off saving memos into the vault automatically. */
+export const AUTO_SAVE_KEY = 'notes.autoSave';
+
+/** Where a note is listed: the vault folder, or `<folder name>/<sub-folder>` for an extra folder. */
+export function noteFolder(n: { root: string; folder: string }): string {
+  if (!n.root) return n.folder;
+  const name = n.root.split(/[\\/]/).filter(Boolean).pop() ?? n.root;
+  return n.folder ? `${name}/${n.folder}` : name;
+}
 
 /** Links to other notes carry this prefix in their href; the page handles the click. */
 export const WIKI_PREFIX = '#wiki:';

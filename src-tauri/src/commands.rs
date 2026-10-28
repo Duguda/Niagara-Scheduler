@@ -245,7 +245,9 @@ pub fn create_memo(state: State<AppState>, title: String, group_id: Option<i64>)
 
 #[tauri::command]
 pub fn set_memo_group(state: State<AppState>, id: i64, group_id: Option<i64>) -> CmdResult<()> {
-    with_db(&state, |db| db.set_memo_group(id, group_id))
+    with_db(&state, |db| db.set_memo_group(id, group_id))?;
+    sync_memo_note(&state, id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -269,7 +271,9 @@ pub fn delete_memo_group(state: State<AppState>, id: i64) -> CmdResult<()> {
 
 #[tauri::command]
 pub fn update_memo(state: State<AppState>, id: i64, title: String, body: String) -> CmdResult<()> {
-    with_db(&state, |db| db.update_memo(id, &title, &body))
+    with_db(&state, |db| db.update_memo(id, &title, &body))?;
+    sync_memo_note(&state, id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -392,30 +396,62 @@ pub fn delete_bookmark(state: State<AppState>, id: i64) -> CmdResult<Option<Book
     with_db(&state, |db| db.delete_bookmark(id))
 }
 
-// ---- Obsidian vault ------------------------------------------------------------------
+// ---- notes (Obsidian vault and other read folders) ---------------------------------------
+
+/// The folders the Notes page reads: the vault (`root: ""`) and any extra folders (`root` = their path).
+fn note_roots(state: &State<AppState>) -> CmdResult<Vec<(String, std::path::PathBuf)>> {
+    let (vault, extra) = with_db(state, |db| Ok((db.setting(crate::obsidian::VAULT_KEY)?, db.setting(crate::obsidian::READ_DIRS_KEY)?)))?;
+    let mut roots = Vec::new();
+    if let Some(v) = vault.filter(|v| !v.trim().is_empty()) {
+        roots.push((String::new(), std::path::PathBuf::from(v)));
+    }
+    for dir in crate::obsidian::parse_read_dirs(extra.as_deref()) {
+        roots.push((dir.clone(), std::path::PathBuf::from(dir)));
+    }
+    Ok(roots)
+}
+
+/// One configured read folder by its id (`""` for the vault). Anything else is refused.
+fn note_root(state: &State<AppState>, root: &str) -> CmdResult<std::path::PathBuf> {
+    note_roots(state)?.into_iter().find(|(id, _)| id == root).map(|(_, p)| p).ok_or_else(|| "no vault".to_string())
+}
 
 fn vault_root(state: &State<AppState>) -> CmdResult<std::path::PathBuf> {
-    let root = with_db(state, |db| db.setting(crate::obsidian::VAULT_KEY))?;
-    root.filter(|r| !r.trim().is_empty()).map(std::path::PathBuf::from).ok_or_else(|| "no vault".to_string())
+    note_root(state, "")
 }
 
 #[tauri::command]
 pub async fn obsidian_notes(state: State<'_, AppState>) -> CmdResult<Vec<crate::obsidian::NoteMeta>> {
-    let root = vault_root(&state)?;
-    tauri::async_runtime::spawn_blocking(move || crate::obsidian::list(&root).map_err(|e| e.to_string()))
-        .await
-        .map_err(|e| e.to_string())?
+    let roots = note_roots(&state)?;
+    if roots.is_empty() {
+        return Err("no vault".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut all = Vec::new();
+        for (id, path) in roots {
+            // A missing extra folder is skipped; a missing vault is an error the page explains.
+            match crate::obsidian::list(&path) {
+                Ok(notes) => all.extend(notes.into_iter().map(|n| crate::obsidian::NoteMeta { root: id.clone(), ..n })),
+                Err(e) if id.is_empty() => return Err(e.to_string()),
+                Err(_) => {}
+            }
+        }
+        all.sort_by(|a, b| b.modified.cmp(&a.modified));
+        Ok(all)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn obsidian_read(state: State<AppState>, path: String) -> CmdResult<String> {
-    crate::obsidian::read(&vault_root(&state)?, &path)
+pub fn obsidian_read(state: State<AppState>, path: String, root: Option<String>) -> CmdResult<String> {
+    crate::obsidian::read(&note_root(&state, root.as_deref().unwrap_or(""))?, &path)
 }
 
 /// `obsidian://open?path=…` link for a note, which opens it in the Obsidian app.
 #[tauri::command]
-pub fn obsidian_open_url(state: State<AppState>, path: String) -> CmdResult<String> {
-    let full = crate::obsidian::absolute(&vault_root(&state)?, &path)?;
+pub fn obsidian_open_url(state: State<AppState>, path: String, root: Option<String>) -> CmdResult<String> {
+    let full = crate::obsidian::absolute(&note_root(&state, root.as_deref().unwrap_or(""))?, &path)?;
     let text = full.to_string_lossy();
     // Windows canonical paths start with `\\?\`, which Obsidian does not understand.
     let text = text.strip_prefix(r"\\?\").unwrap_or(&text);
@@ -429,22 +465,39 @@ pub fn obsidian_open_url(state: State<AppState>, path: String) -> CmdResult<Stri
     Ok(format!("obsidian://open?path={encoded}"))
 }
 
-/// Writes a memo into the vault (see `obsidian::export_memo`) and returns the note's path.
-#[tauri::command]
-pub fn export_memo_to_obsidian(state: State<AppState>, id: i64) -> CmdResult<String> {
-    let root = vault_root(&state)?;
-    let (memo, dir) = with_db(&state, |db| {
-        let memo = db.memos()?.into_iter().find(|m| m.id == id);
-        let dir = db.setting(crate::obsidian::EXPORT_DIR_KEY)?;
-        Ok((memo, dir))
+/// Writes one memo into the vault's memo folder (group = sub-folder) and returns the note's path.
+fn write_memo_note(state: &State<AppState>, id: i64) -> CmdResult<String> {
+    let root = vault_root(state)?;
+    let (memo, groups, dir) = with_db(state, |db| {
+        Ok((db.memos()?.into_iter().find(|m| m.id == id), db.memo_groups()?, db.setting(crate::obsidian::EXPORT_DIR_KEY)?))
     })?;
     let memo = memo.ok_or("memo not found")?;
+    let group = memo.group_id.and_then(|g| groups.into_iter().find(|x| x.id == g)).map(|g| g.name);
     let dir = dir.filter(|d| !d.trim().is_empty()).unwrap_or_else(|| crate::obsidian::DEFAULT_EXPORT_DIR.into());
     crate::obsidian::export_memo(
         &root,
         &dir,
+        group.as_deref(),
         &crate::obsidian::MemoNote { id: memo.id, title: &memo.title, body: &memo.body, created_at: memo.created_at, updated_at: memo.updated_at },
     )
+}
+
+/// After a memo changes: keeps its note in the vault up to date when auto-save is on (the default
+/// once a vault is connected). A failure here never fails the memo save itself.
+fn sync_memo_note(state: &State<AppState>, id: i64) {
+    let auto = with_db(state, |db| db.setting(crate::obsidian::AUTO_SAVE_KEY)).ok().flatten();
+    if auto.as_deref() == Some("0") || vault_root(state).is_err() {
+        return;
+    }
+    if let Err(e) = write_memo_note(state, id) {
+        eprintln!("could not save memo {id} to the vault: {e}");
+    }
+}
+
+/// Writes a memo into the vault (see `obsidian::export_memo`) and returns the note's path.
+#[tauri::command]
+pub fn export_memo_to_obsidian(state: State<AppState>, id: i64) -> CmdResult<String> {
+    write_memo_note(&state, id)
 }
 
 // ---- morning brief ------------------------------------------------------------------
@@ -504,14 +557,24 @@ pub async fn cloze_sources(state: State<'_, AppState>) -> CmdResult<Vec<ClozeSou
             (blanks > 0).then(|| with_stats(format!("memo:{}", m.id), m.title, place, blanks))
         })
         .collect();
-    if let Some(root) = vault.filter(|v| !v.trim().is_empty()) {
-        let root = std::path::PathBuf::from(root);
-        let notes = tauri::async_runtime::spawn_blocking(move || crate::obsidian::study_notes(&root))
-            .await
-            .map_err(|e| e.to_string())?
-            .unwrap_or_default();
-        out.extend(notes.into_iter().map(|(n, blanks)| with_stats(format!("ob:{}", n.path), n.title, n.folder, blanks)));
-    }
+    let _ = vault;
+    let roots = note_roots(&state)?;
+    let notes = tauri::async_runtime::spawn_blocking(move || {
+        roots
+            .into_iter()
+            .flat_map(|(id, path)| {
+                crate::obsidian::study_notes(&path).unwrap_or_default().into_iter().map(move |(n, blanks)| (id.clone(), n, blanks))
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    out.extend(notes.into_iter().map(|(root, n, blanks)| {
+        // Vault notes keep the `ob:` keys of earlier versions; other folders carry their path.
+        let source = if root.is_empty() { format!("ob:{}", n.path) } else { format!("obx:{root}|{}", n.path) };
+        let place = if root.is_empty() { n.folder } else { crate::obsidian::root_label(&root, &n.folder) };
+        with_stats(source, n.title, place, blanks)
+    }));
     Ok(out)
 }
 

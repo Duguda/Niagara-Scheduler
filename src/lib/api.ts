@@ -289,6 +289,8 @@ export interface StorageInfo {
 
 /** A Markdown note in the Obsidian vault (see src-tauri/src/obsidian.rs). */
 export interface NoteMeta {
+  /** Read folder: '' for the vault, otherwise that folder's path. */
+  root: string;
   /** Path inside the vault, `/`-separated. */
   path: string;
   title: string;
@@ -442,8 +444,8 @@ export const api = {
   deleteBook: (id: number) => invoke<Book | null>('delete_book', { id }),
 
   obsidianNotes: () => invoke<NoteMeta[]>('obsidian_notes'),
-  obsidianRead: (path: string) => invoke<string>('obsidian_read', { path }),
-  obsidianOpenUrl: (path: string) => invoke<string>('obsidian_open_url', { path }),
+  obsidianRead: (path: string, root = '') => invoke<string>('obsidian_read', { path, root }),
+  obsidianOpenUrl: (path: string, root = '') => invoke<string>('obsidian_open_url', { path, root }),
   exportMemoToObsidian: (id: number) => invoke<string>('export_memo_to_obsidian', { id }),
   refreshBrief: () => invoke<string>('refresh_brief'),
   storageInfo: () => invoke<StorageInfo>('storage_info'),

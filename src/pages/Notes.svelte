@@ -9,7 +9,7 @@
   import { api, type NoteMeta } from '../lib/api';
   import { fmtTs } from '../lib/dates';
   import { t } from '../lib/i18n.svelte';
-  import { DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, noteLinkTarget, renderNote, resolveWikiLink, VAULT_KEY, WIKI_PREFIX } from '../lib/obsidian';
+  import { AUTO_SAVE_KEY, DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, noteFolder, noteLinkTarget, READ_DIRS_KEY, renderNote, resolveWikiLink, VAULT_KEY, WIKI_PREFIX } from '../lib/obsidian';
   import { toast } from '../lib/state.svelte';
 
   /** Long lists are cut here; search narrows them. */
@@ -29,8 +29,11 @@
   let history = $state<NoteMeta[]>([]);
   let settingsOpen = $state(false);
   let draftDir = $state('');
+  let readDirs = $state<string[]>([]);
+  let autoSave = $state(true);
 
-  const topFolder = (n: NoteMeta) => n.folder.split('/')[0];
+  const topFolder = (n: NoteMeta) => noteFolder(n).split('/')[0];
+  const noteKey = (n: NoteMeta) => `${n.root}|${n.path}`;
   const folders = $derived([...new Set(notes.map(topFolder))].sort((a, b) => a.localeCompare(b)));
   const folderOptions = $derived([
     { value: '', label: t('ob.allFolders') },
@@ -39,7 +42,7 @@
   const filtered = $derived.by(() => {
     const q = search.trim().toLowerCase();
     return notes.filter(
-      (n) => (!folder || (folder === '/' ? n.folder === '' : topFolder(n) === folder)) && (!q || n.path.toLowerCase().includes(q)),
+      (n) => (!folder || (folder === '/' ? noteFolder(n) === '' : topFolder(n) === folder)) && (!q || n.path.toLowerCase().includes(q)),
     );
   });
   const shown = $derived(filtered.slice(0, LIST_LIMIT));
@@ -47,6 +50,12 @@
   async function init() {
     vault = (await api.getSetting(VAULT_KEY).catch(() => null)) || null;
     exportDir = (await api.getSetting(EXPORT_DIR_KEY).catch(() => null)) || DEFAULT_EXPORT_DIR;
+    try {
+      readDirs = JSON.parse((await api.getSetting(READ_DIRS_KEY).catch(() => null)) ?? '[]');
+    } catch {
+      readDirs = [];
+    }
+    autoSave = (await api.getSetting(AUTO_SAVE_KEY).catch(() => null)) !== '0';
     ready = true;
     if (vault) await refresh();
   }
@@ -93,9 +102,26 @@
   }
 
   /** `list`: picked in the list (history restarts) · `link`: followed a link · `back`: Back button. */
+  async function saveReadDirs(dirs: string[]) {
+    readDirs = dirs;
+    await api.setSetting(READ_DIRS_KEY, JSON.stringify(dirs));
+    await refresh();
+  }
+
+  async function addReadDir() {
+    const picked = await pickFolder({ directory: true, multiple: false, title: t('ob.addReadDir') }).catch(() => null);
+    if (typeof picked !== 'string' || picked === vault || readDirs.includes(picked)) return;
+    await saveReadDirs([...readDirs, picked]);
+  }
+
+  async function setAutoSave(on: boolean) {
+    autoSave = on;
+    await api.setSetting(AUTO_SAVE_KEY, on ? '1' : '0');
+  }
+
   async function openNote(n: NoteMeta, how: 'list' | 'link' | 'back' = 'list') {
     try {
-      const text = await api.obsidianRead(n.path);
+      const text = await api.obsidianRead(n.path, n.root);
       const rendered = renderNote(text, t('ob.embed'));
       if (how === 'link' && current) history = [...history, current];
       if (how === 'list') history = [];
@@ -117,7 +143,7 @@
   async function openInObsidian() {
     if (!current) return;
     try {
-      await openUrl(await api.obsidianOpenUrl(current.path));
+      await openUrl(await api.obsidianOpenUrl(current.path, current.root));
     } catch (e) {
       toast(String(e), 'error');
     }
@@ -178,10 +204,10 @@
       </div>
 
       <div class="list">
-        {#each shown as n (n.path)}
-          <button class="note-item" class:active={current?.path === n.path} onclick={() => openNote(n)}>
+        {#each shown as n (noteKey(n))}
+          <button class="note-item" class:active={current !== null && noteKey(current) === noteKey(n)} onclick={() => openNote(n)}>
             <span class="n-title truncate">{n.title}</span>
-            <span class="n-meta truncate">{n.folder || t('ob.root')} · {fmtTs(n.modified, { month: 'short', day: 'numeric' })}</span>
+            <span class="n-meta truncate">{noteFolder(n) || t('ob.root')} · {fmtTs(n.modified, { month: 'short', day: 'numeric' })}</span>
           </button>
         {:else}
           <p class="muted small empty-list">{loading ? '' : notes.length ? t('common.noMatch') : t('ob.empty')}</p>
@@ -209,7 +235,7 @@
           <button class="btn" onclick={openInObsidian}><ExternalLink size={15} /> {t('ob.openInObsidian')}</button>
         </div>
         <p class="status faint small truncate">
-          {current.folder || t('ob.root')} · {t('ob.modified', { date: fmtTs(current.modified, { dateStyle: 'medium', timeStyle: 'short' }) })}
+          {noteFolder(current) || t('ob.root')} · {t('ob.modified', { date: fmtTs(current.modified, { dateStyle: 'medium', timeStyle: 'short' }) })}
           {#each tags as tag (tag)}<span class="tag">#{tag}</span>{/each}
         </p>
         <div class="box">
@@ -231,6 +257,24 @@
         <button class="btn small" onclick={() => { settingsOpen = false; chooseVault(); }}>{t('ob.change')}</button>
       </div>
     </div>
+    <div class="field">
+      <span class="label">{t('ob.readDirs')}</span>
+      <span class="faint small">{t('ob.readDirsHint')}</span>
+      {#each readDirs as dir, i (dir)}
+        <div class="vault-row">
+          <span class="path small truncate" title={dir}>{dir}</span>
+          <button class="btn small ghost" onclick={() => saveReadDirs(readDirs.filter((_, j) => j !== i))}>{t('ob.removeReadDir')}</button>
+        </div>
+      {/each}
+      <button class="btn small add-dir" onclick={addReadDir}><FolderOpen size={14} /> {t('ob.addReadDir')}</button>
+    </div>
+    <label class="auto-save">
+      <input type="checkbox" class="switch" checked={autoSave} onchange={(e) => setAutoSave(e.currentTarget.checked)} />
+      <span>
+        <span class="strong small">{t('ob.autoSave')}</span>
+        <span class="faint small">{t('ob.autoSaveHint')}</span>
+      </span>
+    </label>
     <div class="field">
       <label for="ob-export-dir">{t('ob.exportDir')}</label>
       <input id="ob-export-dir" class="input" bind:value={draftDir} placeholder={DEFAULT_EXPORT_DIR} />
@@ -400,6 +444,21 @@
   .reading {
     padding: 26px 32px;
     font-size: 15px;
+  }
+  .add-dir {
+    align-self: flex-start;
+  }
+  .auto-save {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 4px 0 14px;
+    cursor: pointer;
+  }
+  .auto-save > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
   .vault-row {
     display: flex;

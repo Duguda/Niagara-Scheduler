@@ -211,7 +211,7 @@ export function installMock() {
         if (!settings['obsidian.vault']) throw 'no vault';
         return Object.keys(vaultNotes).map((path, i) => {
           const folder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
-          return { path, title: path.split('/').pop()!.replace(/\.md$/, ''), folder, modified: now - i * 3600, size: vaultNotes[path].length };
+          return { root: '', path, title: path.split('/').pop()!.replace(/\.md$/, ''), folder, modified: now - i * 3600, size: vaultNotes[path].length };
         });
       case 'obsidian_read': {
         const text = vaultNotes[a.path];

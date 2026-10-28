@@ -1167,9 +1167,8 @@ export const ja: Record<Key, string> = {
   'study.hideKey': 'キーワードのみ',
   'study.hideRound': 'n回読',
   'study.roundNow': '{n}回目 · {cycle}周目 {pos}/{total}',
-  'study.nextRound': '次の回',
   'study.resetRound': '1回目から',
-  'study.roundHint': '回ごとに本文の単語の1/{n}を入れ替えて隠します。{n}回で全単語が一度ずつ隠れます。ここでの○✕は記録されません。',
+  'study.roundHint': '回ごとに本文の単語の1/{n}を入れ替えて隠します。隠れた所をすべて○✕で採点すると1回と数えます。ここでの○✕は記録されません。',
   'study.blocks': 'ブロック',
   'study.scopeAll': '全体',
   'study.stack': '積み上げ',
@@ -1179,4 +1178,7 @@ export const ja: Record<Key, string> = {
   'study.stackReset': '最初から',
   'study.intro': '冒頭',
   'study.roundOnly': 'n回読用',
+  'study.roundDone': '{n}回目完了: ○ {o} · ✕ {x}',
+  'study.startRound': '{n}回目を始める',
+  'study.partNotCounted': 'ノートの一部だけなので回数には入りません。',
 };

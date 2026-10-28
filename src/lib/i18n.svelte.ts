@@ -1171,9 +1171,8 @@ const en = {
   'study.hideKey': 'Key words',
   'study.hideRound': 'n-reading',
   'study.roundNow': 'Reading {n} · lap {cycle}, set {pos}/{total}',
-  'study.nextRound': 'Next reading',
   'study.resetRound': 'Back to reading 1',
-  'study.roundHint': 'Each reading hides a different 1/{n} of the words, so after {n} readings every word has been hidden once. These marks are not recorded.',
+  'study.roundHint': 'Each reading hides a different 1/{n} of the words; a reading counts once every hidden word is marked. After {n} readings every word has been hidden once. These marks are not recorded.',
   'study.blocks': 'Blocks',
   'study.scopeAll': 'Whole note',
   'study.stack': 'Build up',
@@ -1183,6 +1182,9 @@ const en = {
   'study.stackReset': 'From the start',
   'study.intro': 'Opening',
   'study.roundOnly': 'n-reading',
+  'study.roundDone': 'Reading {n} done: ○ {o} · ✕ {x}',
+  'study.startRound': 'Start reading {n}',
+  'study.partNotCounted': 'Only part of the note was shown, so this does not count as a reading.',
 };
 
 export type Key = keyof typeof en;
@@ -2352,9 +2354,8 @@ const ko: Record<Key, string> = {
   'study.hideKey': '핵심어만',
   'study.hideRound': 'n회독',
   'study.roundNow': '{n}회독째 · {cycle}바퀴 {pos}/{total}묶음',
-  'study.nextRound': '다음 회독',
   'study.resetRound': '1회독부터',
-  'study.roundHint': '회독마다 본문 단어의 1/{n}을 바꿔 가며 가려요. {n}회독이면 모든 단어가 한 번씩 가려져요. 여기서 고른 ○ ✕는 복습 기록에 남지 않아요.',
+  'study.roundHint': '회독마다 본문 단어의 1/{n}을 바꿔 가며 가려요. 가려진 곳을 전부 ○ ✕로 채점해야 1회독으로 세요. {n}회독이면 모든 단어가 한 번씩 가려지고, 여기서 고른 ○ ✕는 복습 기록에 남지 않아요.',
   'study.blocks': '블록',
   'study.scopeAll': '전체',
   'study.stack': '누적 쌓기',
@@ -2364,6 +2365,9 @@ const ko: Record<Key, string> = {
   'study.stackReset': '처음부터',
   'study.intro': '처음',
   'study.roundOnly': 'n회독용',
+  'study.roundDone': '{n}회독 완료! ○ {o} · ✕ {x}',
+  'study.startRound': '{n}회독 시작',
+  'study.partNotCounted': '노트 일부만 풀어서 회독 수에는 들어가지 않아요.',
 };
 
 const DICTS: Record<Locale, Record<Key, string>> = { en, ko, ja };

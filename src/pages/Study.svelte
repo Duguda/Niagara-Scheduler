@@ -239,6 +239,7 @@
       p = {};
     }
     hide = p.hide === 'round' ? 'round' : 'key';
+    counted = false;
     round = Math.max(1, Math.floor(p.round ?? 1));
     stage = Math.min(Math.max(0, Math.floor(p.stage ?? 0)), Math.max(0, blocks.length - 1));
     scope = '';
@@ -258,8 +259,23 @@
     focusNext();
   }
 
-  async function nextRound(by = 1) {
-    round = by === 0 ? 1 : round + by;
+  /** A reading counts only when every hidden word of the whole note has been marked ○ or ✕. */
+  const wholeNote = $derived(scope === '' || (scope === 'stack' && stage === blocks.length - 1));
+  const roundDone = $derived(hide === 'round' && wholeNote && tally.left === 0 && inScope.length > 0);
+  /** Set once this reading has been counted (saved), so it is not counted twice. */
+  let counted = $state(false);
+  $effect(() => {
+    if (roundDone && !counted && current) {
+      counted = true;
+      api.setSetting(progressKey(current.source), JSON.stringify({ hide, round: round + 1, stage })).catch(() => {});
+    }
+  });
+
+  /** Starts the next reading (after a counted one) or goes back to reading 1. */
+  async function nextRound(reset = false) {
+    if (reset) round = 1;
+    else if (counted) round += 1;
+    counted = false;
     states.clear();
     saveProgress();
     await paint();
@@ -293,6 +309,7 @@
 
   async function hideAll() {
     states.clear();
+    counted = false;
     await paint();
     focusNext();
   }
@@ -393,8 +410,7 @@
           </div>
         {:else}
           <span class="round-now">{t('study.roundNow', { n: round, cycle: Math.floor((round - 1) / GROUPS) + 1, pos: ((round - 1) % GROUPS) + 1, total: GROUPS })}</span>
-          <button class="btn small primary" onclick={() => nextRound()}><SkipForward size={14} /> {t('study.nextRound')}</button>
-          {#if round > 1}<button class="btn small ghost" onclick={() => nextRound(0)}>{t('study.resetRound')}</button>{/if}
+          {#if round > 1}<button class="btn small ghost" onclick={() => nextRound(true)}>{t('study.resetRound')}</button>{/if}
           <span class="faint small round-hint">{t('study.roundHint', { n: GROUPS })}</span>
         {/if}
       </div>
@@ -438,9 +454,14 @@
       </div>
       {#if tally.left === 0 && inScope.length}
         <div class="done">
-          <span>{t('study.doneLine', { o: tally.right, x: tally.wrong })}</span>
-          {#if hide === 'round'}
-            <button class="btn small primary" onclick={() => nextRound()}><SkipForward size={14} /> {t('study.nextRound')}</button>
+          <span>
+            {#if roundDone}{t('study.roundDone', { n: round, o: tally.right, x: tally.wrong })}{:else}{t('study.doneLine', { o: tally.right, x: tally.wrong })}{/if}
+            {#if hide === 'round' && !wholeNote}<span class="faint small part-note">{t('study.partNotCounted')}</span>{/if}
+          </span>
+          {#if roundDone}
+            <button class="btn small primary" onclick={() => nextRound()}><SkipForward size={14} /> {t('study.startRound', { n: round + 1 })}</button>
+          {:else if hide === 'round'}
+            <button class="btn small" onclick={hideAll}><RotateCcw size={14} /> {t('study.hideAll')}</button>
           {:else if tally.wrong}<button class="btn small" onclick={() => { finishSource(); setMode('weak'); }}><RotateCcw size={14} /> {t('study.againWeak')}</button>{/if}
           <button class="btn small primary" onclick={finishSource}>{t('study.finish')}</button>
         </div>
@@ -618,6 +639,10 @@
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 10px;
+  }
+  .part-note {
+    display: block;
+    font-weight: 400;
   }
   .round-now {
     font-weight: 650;

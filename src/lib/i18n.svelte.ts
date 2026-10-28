@@ -1236,6 +1236,11 @@ const en = {
   'ics.pick': 'Choose a file',
   'guide.calTitle': 'Connect your calendar (optional)',
   'guide.calLater': 'You can do this later from the Calendar page (Connect a calendar).',
+  'upd.title': 'Update available',
+  'upd.version': 'You have v{v}.',
+  'upd.later': 'Later',
+  'upd.now': 'Update now',
+  'upd.restartNote': 'Niagara restarts after installing. Your data stays as it is.',
 };
 
 export type Key = keyof typeof en;
@@ -2470,6 +2475,11 @@ const ko: Record<Key, string> = {
   'ics.pick': '파일 고르기',
   'guide.calTitle': '캘린더 연결 (선택)',
   'guide.calLater': '나중에 캘린더 페이지의 "캘린더 연결"에서 해도 돼요.',
+  'upd.title': '새 업데이트',
+  'upd.version': '지금 쓰는 버전: v{v}',
+  'upd.later': '나중에',
+  'upd.now': '지금 업데이트',
+  'upd.restartNote': '설치가 끝나면 Niagara가 다시 시작돼요. 데이터는 그대로예요.',
 };
 
 const DICTS: Record<Locale, Record<Key, string>> = { en, ko, ja };

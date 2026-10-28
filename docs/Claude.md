@@ -54,6 +54,7 @@ docs/                이 문서들
 - 환경변수 `NORA_DATA_DIR`: 데이터 폴더를 직접 지정 (개발용, brief는 그 아래 `brief\`)
 
 ## 현재 상태
+- v0.15.1: 업데이트 발견 시 창(바뀐 내용 + 지금/나중에) + 사이드바 설정에 빨간 점
 - 자동 업데이트 실제 동작 확인 (v0.14.0 → v0.15.0, 2026-10-29)
 - v0.15.0: 구글 캘린더 iCal 비공개 주소 구독(30분마다, 한 방향, calsub.rs), 캘린더 페이지·시작 안내에서 연결, 노트 폴더 트리 선
 - v0.14.0: 자동 업데이트 (GitHub 최신 릴리스의 latest.json, 서명 확인). 서명 키는 사용자 PC(`%USERPROFILE%\.tauri\niagara.key`)와 GitHub 시크릿 `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)`에만 있음. 공개 키는 tauri.conf.json

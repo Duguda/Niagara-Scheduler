@@ -22,7 +22,7 @@
   import StickerLayer from './components/StickerLayer.svelte';
   import { loadStickers } from './lib/stickers.svelte';
   import { guide, initGuide } from './lib/guide.svelte';
-  import { checkForUpdate } from './lib/updater.svelte';
+  import { checkForUpdate, updater } from './lib/updater.svelte';
   import { loadCalPrefs } from './lib/calPrefs.svelte';
   import Home from './pages/Home.svelte';
   import type { Component } from 'svelte';
@@ -263,7 +263,10 @@
       title={tip(t('nav.settings'), shortcut(','))}
       aria-label={t('nav.settings')}
     >
-      <SettingsIcon size={19} />
+      <span class="settings-icon">
+        <SettingsIcon size={19} />
+        {#if updater.available}<span class="update-dot" title={t('upd.available', { v: updater.available })}></span>{/if}
+      </span>
       <span class="label-text">{t('nav.settings')}</span>
     </button>
 
@@ -295,6 +298,8 @@
 
   {#if guide.open}
     {#await import('./components/Guide.svelte') then { default: Guide }}<Guide />{/await}
+  {:else if updater.prompt}
+    {#await import('./components/UpdateDialog.svelte') then { default: UpdateDialog }}<UpdateDialog />{/await}
   {/if}
   <ContextMenu />
   <ScopeDialog />
@@ -568,5 +573,19 @@
   .toast.success {
     background: var(--success);
     color: #fff;
+  }
+  .settings-icon {
+    position: relative;
+    display: inline-flex;
+  }
+  .update-dot {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--danger);
+    box-shadow: 0 0 0 2px var(--sidebar-bg, var(--surface));
   }
 </style>

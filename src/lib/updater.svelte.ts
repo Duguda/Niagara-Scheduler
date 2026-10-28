@@ -5,9 +5,20 @@ import { toast } from './state.svelte';
 
 const inTauri = () => '__TAURI_INTERNALS__' in window;
 
-export const updater = $state<{ checking: boolean; available: string | null; installing: boolean; error: string | null }>({
+export const updater = $state<{
+  checking: boolean;
+  available: string | null;
+  /** Release notes of the found version (from latest.json). */
+  notes: string;
+  /** Show the "new version" dialog. */
+  prompt: boolean;
+  installing: boolean;
+  error: string | null;
+}>({
   checking: false,
   available: null,
+  notes: '',
+  prompt: false,
   installing: false,
   error: null,
 });
@@ -23,8 +34,9 @@ export async function checkForUpdate(quiet = false): Promise<void> {
     const { check } = await import('@tauri-apps/plugin-updater');
     pending = await check();
     updater.available = pending?.version ?? null;
+    updater.notes = pending?.body ?? '';
     if (pending) {
-      toast(t('upd.available', { v: pending.version }), 'info', { label: t('upd.install'), run: () => void installUpdate() });
+      updater.prompt = true;
     } else if (!quiet) {
       toast(t('upd.latest'), 'success');
     }
@@ -41,7 +53,6 @@ export async function installUpdate(): Promise<void> {
   if (!pending || updater.installing) return;
   updater.installing = true;
   try {
-    toast(t('upd.downloading'), 'info');
     await pending.downloadAndInstall();
     const { relaunch } = await import('@tauri-apps/plugin-process');
     await relaunch();

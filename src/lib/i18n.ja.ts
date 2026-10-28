@@ -1232,4 +1232,9 @@ export const ja: Record<Key, string> = {
   'ics.pick': 'ファイルを選ぶ',
   'guide.calTitle': 'カレンダー連携（任意）',
   'guide.calLater': 'あとでカレンダーページの「カレンダー連携」からでもできます。',
+  'upd.title': 'アップデートがあります',
+  'upd.version': '現在のバージョン: v{v}',
+  'upd.later': 'あとで',
+  'upd.now': '今すぐアップデート',
+  'upd.restartNote': 'インストール後にNiagaraが再起動します。データはそのままです。',
 };

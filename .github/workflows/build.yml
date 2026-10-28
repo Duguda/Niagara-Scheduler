@@ -1,12 +1,15 @@
 # Builds the Windows installer on GitHub so the app can be installed without a local toolchain.
-# The installer is uploaded as a workflow artifact (Actions → this run → Artifacts); nothing is
-# published as a release.
+# - Push to main: the installer is a workflow artifact (Actions → this run → Artifacts).
+# - Push a version tag (`v0.11.0`): the same build is also published as a GitHub Release, where
+#   the setup .exe can be downloaded directly, without a zip or a GitHub login.
 name: Build Windows installer
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
+    # Path filters below do not apply to tags: a version tag always builds and releases.
+    tags: ['v*']
     paths:
       - 'src/**'
       - 'src-tauri/**'
@@ -20,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write # creating the release on version tags
 
 jobs:
   windows:
@@ -61,3 +64,15 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish release (version tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Release notes = this version's section of docs/CHANGES.md.
+          awk -v v="## ${TAG}" 'index($0, v) == 1 {on=1; next} /^## v/ {on=0} on' docs/CHANGES.md > notes.md
+          gh release create "$TAG" src-tauri/target/release/bundle/nsis/*-setup.exe \
+            --title "Niagara Scheduler ${TAG}" --notes-file notes.md

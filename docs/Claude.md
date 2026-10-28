@@ -61,7 +61,7 @@ docs/                이 문서들
 - v0.7.0: 저장 구조 개편(설치 폴더 data·brief), brief.schema.json, 설정의 저장 위치 카드
 - v0.6.x: 옵시디언 노트 페이지, 메모 → 옵시디언 보내기, 모닝 브리프 파일, Windows 자동 빌드
 - 검증: `npm run check` 오류 0, `npm run build` 통과, `cargo test` 63개 통과, 브라우저 미리보기(Playwright)로 화면·뒤로 가기·링크 확인
-- Windows CI 빌드: v0.7.0 성공. 실제 PC 확인은 아직
+- Windows CI 빌드: main push마다 아티팩트(zip), `v*` 태그 push 시 GitHub Release에 setup.exe 공개하는 단계 준비됨 (태그는 아직 없음). 실제 PC 확인은 아직
 - 알파 테스트 화면: 예시 데이터 미리보기를 claude.ai 아티팩트로 공개(비공개 링크). `npm run preview:build` 결과를 올림
 - GitHub: Duguda/Niagara-Scheduler main에 push (리모트 `origin`, 원작은 `upstream`)
 - 공개 레포라 커밋 작성자는 `Duguda <74199426+Duguda@users.noreply.github.com>`만 사용. 실명·개인 이메일을 레포에 넣지 않는다

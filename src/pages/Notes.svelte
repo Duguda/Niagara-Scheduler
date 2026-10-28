@@ -195,8 +195,11 @@
   }
 
   /** Coming back to the window: pick up notes added, changed or deleted in other programs. */
+  // Focus can bounce several times while switching windows; one folder scan is enough.
+  let lastScan = 0;
   async function onFocus() {
-    if (!dirs.length || loading || editing) return;
+    if (!dirs.length || loading || editing || Date.now() - lastScan < 3000) return;
+    lastScan = Date.now();
     await refresh();
     if (!current) return;
     const fresh = notes.find((x) => current && noteKey(x) === noteKey(current));

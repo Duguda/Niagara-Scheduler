@@ -39,7 +39,7 @@
 
   onMount(() => {
     load(api.trackerSettings(), null).then((s) => (settings = s));
-    const timer = setInterval(refresh, 3000);
+    const timer = setInterval(() => document.hidden || refresh(), 3000);
     return () => clearInterval(timer);
   });
 

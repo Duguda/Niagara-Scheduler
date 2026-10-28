@@ -18,7 +18,7 @@
 
   onMount(() => {
     refresh();
-    const timer = setInterval(refresh, 15_000);
+    const timer = setInterval(() => document.hidden || refresh(), 15_000);
     return () => clearInterval(timer);
   });
 

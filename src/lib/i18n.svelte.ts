@@ -1,7 +1,6 @@
 // Translations. `t()` reads the reactive locale, so every string re-renders
 // when the language changes in Settings.
 import { api } from './api';
-import { ja } from './i18n.ja';
 import { broadcastPrefs } from './sync.svelte';
 
 export type Locale = 'en' | 'ko' | 'ja';
@@ -2482,13 +2481,17 @@ const ko: Record<Key, string> = {
   'upd.restartNote': '설치가 끝나면 Niagara가 다시 시작돼요. 데이터는 그대로예요.',
 };
 
-const DICTS: Record<Locale, Record<Key, string>> = { en, ko, ja };
+// Japanese is loaded only when chosen, so most starts skip ~65 KB of strings.
+const DICTS: Partial<Record<Locale, Record<Key, string>>> = { en, ko };
+async function ensureDict(locale: Locale) {
+  if (!DICTS[locale] && locale === 'ja') DICTS.ja = (await import('./i18n.ja')).ja;
+}
 
 export const i18n = $state({ locale: 'en' as Locale });
 
 /** Translates `key`, filling `{name}` placeholders from `params`. */
 export function t(key: Key, params?: Record<string, string | number>): string {
-  const text = DICTS[i18n.locale][key] ?? en[key];
+  const text = DICTS[i18n.locale]?.[key] ?? en[key];
   return params ? text.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`)) : text;
 }
 
@@ -2497,6 +2500,7 @@ const INTL: Record<Locale, string> = { en: 'en-US', ko: 'ko-KR', ja: 'ja-JP' };
 export const intlLocale = () => INTL[i18n.locale];
 
 export async function setLocale(locale: Locale) {
+  await ensureDict(locale);
   i18n.locale = locale;
   document.documentElement.lang = locale;
   await api.setSetting('ui.locale', locale).catch(() => {});
@@ -2507,6 +2511,8 @@ export async function initLocale() {
   const saved = await api.getSetting('ui.locale').catch(() => null);
   const known = (l: string | null): l is Locale => l === 'en' || l === 'ko' || l === 'ja';
   const system = navigator.language.slice(0, 2);
-  i18n.locale = known(saved) ? saved : known(system) ? system : 'en';
+  const locale = known(saved) ? saved : known(system) ? system : 'en';
+  await ensureDict(locale);
+  i18n.locale = locale;
   document.documentElement.lang = i18n.locale;
 }

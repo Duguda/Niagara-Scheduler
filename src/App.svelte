@@ -88,7 +88,10 @@
         ui.page = payload.page;
       });
     }
-    const poll = async () => (tracker = await api.trackerStatus().catch(() => null));
+    const poll = async () => {
+      if (document.hidden) return; // minimized or in the tray: nothing to show
+      tracker = await api.trackerStatus().catch(() => null);
+    };
     poll();
     const timer = setInterval(poll, 2000);
     return () => clearInterval(timer);

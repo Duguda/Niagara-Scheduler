@@ -102,7 +102,8 @@ class Pomodoro {
       this.runStartedAt = this.lastSaved = Date.now();
     }
     this.started = true;
-    this.endsAt = Date.now() + this.pausedRemaining;
+    this.now = Date.now();
+    this.endsAt = this.now + this.pausedRemaining;
     // Ask once, early, so the end-of-session notification can be shown.
     isPermissionGranted()
       .then((ok) => {
@@ -189,8 +190,9 @@ class Pomodoro {
   }
 
   private tick() {
-    this.now = Date.now();
+    // Nothing reads `now` while stopped, so an idle timer changes no state.
     if (this.endsAt === null) return;
+    this.now = Date.now();
     if (this.now < this.endsAt) {
       if (this.phase === 'focus' && this.now - this.lastSaved >= SAVE_EVERY_MS) {
         this.lastSaved = this.now;

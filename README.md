@@ -113,3 +113,12 @@ cd src-tauri && cargo test     # 백엔드 테스트
 ## 라이선스
 
 [MIT](LICENSE)
+
+## 출처와 감사
+
+Niagara Scheduler는 Imgyeong Lee님의 [Nora Schedule](https://github.com/ImgyeongLee/NoraSchedule)을 바탕으로 만든 개인용 개량판이에요.
+잘 만들어진 앱을 MIT 라이선스로 공개해 주신 덕분에 제 생활에 맞게 고쳐 쓸 수 있었어요. 감사합니다.
+
+- 원본의 설계와 대부분의 코드는 원작자의 작업이에요. 이 레포의 변경 사항은 [docs/CHANGES.md](docs/CHANGES.md)에 정리되어 있어요.
+- 원본과는 별개의 프로젝트이며, 원작자가 이 버전을 관리하거나 지원하지 않아요. 이 버전의 문제는 원본 레포가 아니라 이 레포에 남겨 주세요.
+- 원본의 저작권 표시와 라이선스는 [LICENSE](LICENSE)에 그대로 유지하고 있어요.

@@ -49,7 +49,7 @@ docs/                이 문서들
 ## 현재 상태
 - v0.6.0: 옵시디언 노트 페이지, 메모 → 옵시디언 보내기, 모닝 브리프 파일
 - 검증: `npm run check` 오류 0, `npm run build` 통과, `cargo test` 49개 통과, 브라우저 미리보기로 화면 확인
-- GitHub push는 Claude GitHub 앱 권한 연결 후 가능 (아직 로컬 커밋만 있음)
+- GitHub: Duguda/Niagara-Scheduler main에 push 완료 (원격 리모트 `origin`, 원작은 `upstream`)
 - 공개 레포라 커밋 작성자는 `Duguda <74199426+Duguda@users.noreply.github.com>`만 사용. 실명·개인 이메일을 레포에 넣지 않는다
 
 ## 의사결정 로그

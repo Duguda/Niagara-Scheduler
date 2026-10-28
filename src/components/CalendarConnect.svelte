@@ -2,7 +2,7 @@
   // Bringing in another calendar: subscribe to its iCal address (Google Calendar's secret address;
   // kept up to date every 30 minutes, one way), or import an .ics / .zip file once.
   // Used on the Calendar page and in the first-run guide (`compact`: subscription only).
-  import { CalendarPlus, Link2, LoaderCircle, RefreshCw, Unlink } from '@lucide/svelte';
+  import { ArrowDownToLine, CalendarPlus, Link2, LoaderCircle, RefreshCw, Unlink } from '@lucide/svelte';
   import { api, type CalSub, type IcsPreview } from '../lib/api';
   import { fmtTs } from '../lib/dates';
   import { t } from '../lib/i18n.svelte';
@@ -85,6 +85,7 @@
   <section>
     <h3><Link2 size={16} /> {t('sub.title')}</h3>
     <p class="muted small">{t('sub.body')}</p>
+    <p class="one-way small"><ArrowDownToLine size={14} /> {t('sub.oneWay')}</p>
     <ol class="how small">
       <li>{t('sub.how1')}</li>
       <li>{t('sub.how2')}</li>
@@ -186,6 +187,21 @@
   }
   p {
     margin: 0;
+  }
+  .one-way {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    background: var(--primary-soft);
+    color: var(--text);
+    font-weight: 600;
+  }
+  .one-way :global(svg) {
+    flex: none;
+    margin-top: 2px;
+    color: var(--primary);
   }
   .how {
     margin: 0;

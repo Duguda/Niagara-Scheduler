@@ -33,29 +33,31 @@ src-tauri/src/
   backup.rs          .nora 백업(zip) 내보내기/가져오기
   tracker.rs         포커스 창 추적 (활동 기록)
   obsidian.rs        옵시디언 vault 목록·읽기·메모 내보내기
-  brief.rs           모닝 브리프용 brief.json 생성
+  brief.rs           모닝 브리프용 brief.json + brief.schema.json 생성
+  storage.rs         저장 위치 결정 (설치 폴더 / 앱 데이터 폴더, data·brief 분류)
   reminders.rs       일정 알림
   recurrence.rs      반복 일정 규칙
 docs/                이 문서들
 ```
 
 ## 데이터 위치
-- Windows: `%APPDATA%\com.niagara.scheduler\nora.sqlite3` (+ `-wal`, `-shm`), 이미지는 `images\`
-- 원본 Nora 앱 데이터(`%APPDATA%\com.nora.schedule`)와는 분리됨. 옮길 때는 원본에서 `.nora` 백업 내보내기 → Niagara에서 가져오기
-- 모닝 브리프: 같은 폴더의 `brief.json` (앱 실행 중 5분마다 갱신)
+- 기준 폴더 아래 `data\`(DB `nora.sqlite3`, `images\`)와 `brief\`(`brief.json`, `brief.schema.json`)
+- 기준 폴더: Windows 릴리스 빌드는 설치 폴더(쓰기 가능할 때), 아니면 `%APPDATA%\com.niagara.scheduler`. 이미 데이터가 있는 쪽 우선. 0.6 이하 루트 DB는 그 자리 유지 (`storage.rs`)
+- 원본 Nora 데이터(`%APPDATA%\com.nora.schedule`)와는 분리. 옮길 때는 Nora에서 `.nora` 백업 내보내기 → Niagara에서 가져오기
 - 옵시디언 설정: settings 테이블 `obsidian.vault`(절대 경로), `obsidian.exportDir`(기본 `Niagara`)
-- 환경변수 `NORA_DATA_DIR`로 다른 폴더 지정 가능 (개발 시 원본 데이터 보호용으로 사용할 것)
+- 환경변수 `NORA_DATA_DIR`: 데이터 폴더를 직접 지정 (개발용, brief는 그 아래 `brief\`)
 
 ## 현재 상태
-- v0.6.1: 옵시디언 노트 페이지, 메모 → 옵시디언 보내기, 모닝 브리프 파일, Windows 자동 빌드
-- 검증: `npm run check` 오류 0, `npm run build` 통과, `cargo test` 50개 통과, 브라우저 미리보기(Playwright)로 화면·뒤로 가기·링크 확인
+- v0.7.0: 저장 구조 개편(설치 폴더 data·brief), brief.schema.json, 설정의 저장 위치 카드
+- v0.6.x: 옵시디언 노트 페이지, 메모 → 옵시디언 보내기, 모닝 브리프 파일, Windows 자동 빌드
+- 검증: `npm run check` 오류 0, `npm run build` 통과, `cargo test` 56개 통과, 브라우저 미리보기(Playwright)로 화면·뒤로 가기·링크 확인
 - 아직 실제 Windows 앱으로는 확인 전 (CI 설치 파일로 확인 예정)
 - GitHub: Duguda/Niagara-Scheduler main에 push (리모트 `origin`, 원작은 `upstream`)
 - 공개 레포라 커밋 작성자는 `Duguda <74199426+Duguda@users.noreply.github.com>`만 사용. 실명·개인 이메일을 레포에 넣지 않는다
 
 ## 모닝 브리프 연결
 - 예약 작업 "모닝 브리프"(평일 08:06 KST) 지시문에 Niagara 섹션을 추가함 (2026-10-28)
-- 읽는 경로: 사용자 PC 파일 도구로 `com.niagara.scheduler\brief.json`을 직접 읽음. 없으면 조용히 생략
+- 읽는 경로: 사용자 PC 파일 도구로 `brief\brief.json`(설치 폴더 안, 없으면 `com.niagara.scheduler\brief\`)을 직접 읽음. 구조는 `brief.schema.json`. 없으면 조용히 생략
 - 쓰려면 데스크톱 앱에서 그 예약 작업의 "Require this computer"를 켜야 함 (아직 안 함). 실행 시각에 PC가 켜져 있어야 함
 
 ## 의사결정 로그
@@ -71,6 +73,8 @@ docs/                이 문서들
 | 2026-10-28 | 모닝 브리프는 DB 직접 읽기 대신 `brief.json` 제공 | 채택 | 반복 일정 펼치기를 앱이 처리, 민감 데이터(일기·가계부·외주·추적)를 구조적으로 제외 |
 | 2026-10-28 | Windows 설치 파일은 GitHub Actions Artifacts로만 배포, Release는 만들지 않음 | 채택 | 개인용. 공개 릴리스는 필요할 때 따로 결정 |
 | 2026-10-28 | 구글 드라이브 경유(복사본 폴더) | 미채택 | 외부 서비스·용량에 기대지 않음. Niagara는 로컬에만 두고 Claude가 PC에서 직접 읽는 방향 |
+| 2026-10-28 | 데이터를 설치 폴더에 용도별(data·brief)로 저장 | 채택 | 한 폴더만 허락하면 Claude가 읽을 수 있음. Tauri 언인스톨러는 설치한 파일만 지워 data가 남음 (AppData는 '앱 데이터 삭제' 체크 시 통째로 지워짐) |
+| 2026-10-28 | 브리프 구조를 brief.schema.json으로 분리 제공 | 채택 | 읽는 쪽이 필드 뜻을 따로 불러옴. version 필드로 변경 구분, 테스트로 코드와 일치 보장 |
 | 2026-10-28 | 공유되던 번역 키 `trpg.year/noMatch/playUnit` → `common.year/noMatch/timesUnit` | 채택 | 일기·외주 화면이 계속 사용 |
 
 ## 개선 로드맵

@@ -18,6 +18,62 @@ use serde::Serialize;
 use crate::db::{self, Db, DbResult, Event};
 
 pub const FILE_NAME: &str = "brief.json";
+/// Describes every field of `brief.json`, so a reader can load the structure on its own.
+pub const SCHEMA_FILE_NAME: &str = "brief.schema.json";
+pub const SCHEMA: &str = r##"{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "niagara-brief/1",
+  "title": "Niagara Scheduler 오늘 요약 (brief.json)",
+  "description": "Niagara가 앱 실행 중 5분마다 다시 쓰는 하루 요약. 일정 계획용 데이터만 담고 일기·가계부·외주·작업 시간 추적은 넣지 않는다. 시간은 사용자 PC의 현지 시각, 날짜는 YYYY-MM-DD.",
+  "type": "object",
+  "required": ["version", "generated_at", "date", "today", "tomorrow", "todos_overdue", "todos_today", "ddays", "focus_minutes_yesterday", "focus_sessions_yesterday"],
+  "properties": {
+    "version": { "type": "integer", "description": "이 구조의 버전. 필드가 바뀌면 올라간다. 지금은 1." },
+    "generated_at": { "type": "string", "description": "파일을 쓴 현지 시각, YYYY-MM-DDTHH:MM." },
+    "date": { "type": "string", "format": "date", "description": "요약 기준 날짜(오늘). 다른 날이면 오래된 파일이다." },
+    "today": { "type": "array", "items": { "$ref": "#/$defs/event" }, "description": "오늘 일정. 반복 일정은 이미 펼쳐져 있고, 종일 일정이 먼저 나온 뒤 시작 시각 순." },
+    "tomorrow": { "type": "array", "items": { "$ref": "#/$defs/event" }, "description": "내일 일정. 준비할 일을 고르는 참고용." },
+    "todos_overdue": { "type": "array", "items": { "$ref": "#/$defs/todo" }, "description": "마감이 지났는데 끝내지 않은 할 일, 마감이 이른 순." },
+    "todos_today": { "type": "array", "items": { "$ref": "#/$defs/todo" }, "description": "오늘 마감인 끝내지 않은 할 일. 마감 시각이 있는 것이 먼저." },
+    "ddays": { "type": "array", "items": { "$ref": "#/$defs/dday" }, "description": "앞으로 60일 안의 디데이, 가까운 순." },
+    "focus_minutes_yesterday": { "type": "integer", "description": "어제 뽀모도로로 집중한 시간(분)." },
+    "focus_sessions_yesterday": { "type": "integer", "description": "어제 뽀모도로 세션 수 (중간에 멈춘 것 포함)." }
+  },
+  "$defs": {
+    "event": {
+      "type": "object",
+      "required": ["title", "start", "end", "all_day", "location", "cancelled"],
+      "properties": {
+        "title": { "type": "string" },
+        "start": { "type": ["string", "null"], "description": "HH:MM. 종일 일정이거나 전날 시작했으면 null." },
+        "end": { "type": ["string", "null"], "description": "HH:MM. 종일 일정이거나 다음 날 끝나면 null." },
+        "all_day": { "type": "boolean" },
+        "location": { "type": "string", "description": "없으면 빈 문자열." },
+        "cancelled": { "type": "boolean", "description": "취소됐지만 달력에 남겨 둔 일정." }
+      }
+    },
+    "todo": {
+      "type": "object",
+      "required": ["title", "due", "due_time", "group"],
+      "properties": {
+        "title": { "type": "string" },
+        "due": { "type": "string", "format": "date" },
+        "due_time": { "type": ["string", "null"], "description": "HH:MM 마감 시각, 없으면 null." },
+        "group": { "type": ["string", "null"], "description": "할 일 그룹 이름, 없으면 null." }
+      }
+    },
+    "dday": {
+      "type": "object",
+      "required": ["title", "date", "days_left"],
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string", "format": "date", "description": "세는 날짜. 매년 반복이면 다음 기념일." },
+        "days_left": { "type": "integer", "description": "남은 날 수. 오늘이면 0." }
+      }
+    }
+  }
+}
+"##;
 /// D-Days further away than this are left out.
 const DDAY_HORIZON_DAYS: i64 = 60;
 const REFRESH: StdDuration = StdDuration::from_secs(5 * 60);
@@ -145,17 +201,22 @@ pub fn build(db: &Db, today: NaiveDate) -> DbResult<Brief> {
 
 /// Writes the brief next to the database. A temporary file plus rename means a reader never
 /// sees a half-written file.
+/// Writes `brief.json` (and its schema, when missing or outdated) into `dir`.
 pub fn write(dir: &Path, brief: &Brief) -> io::Result<PathBuf> {
-    write_as(dir, FILE_NAME, brief)
+    fs::create_dir_all(dir)?;
+    let schema = dir.join(SCHEMA_FILE_NAME);
+    if fs::read_to_string(&schema).ok().as_deref() != Some(SCHEMA) {
+        write_atomic(&schema, SCHEMA)?;
+    }
+    let path = dir.join(FILE_NAME);
+    write_atomic(&path, &serde_json::to_string_pretty(brief).map_err(io::Error::other)?)?;
+    Ok(path)
 }
 
-fn write_as(dir: &Path, name: &str, brief: &Brief) -> io::Result<PathBuf> {
-    let json = serde_json::to_string_pretty(brief).map_err(io::Error::other)?;
-    let path = dir.join(name);
-    let tmp = dir.join(format!("{name}.tmp"));
-    fs::write(&tmp, json)?;
-    fs::rename(&tmp, &path)?;
-    Ok(path)
+fn write_atomic(path: &Path, text: &str) -> io::Result<()> {
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, text)?;
+    fs::rename(&tmp, path)
 }
 
 pub fn refresh(db: &Db, dir: &Path) -> Result<PathBuf, String> {
@@ -257,6 +318,27 @@ mod tests {
         let value: serde_json::Value = serde_json::from_str(&fs::read_to_string(&written).unwrap()).unwrap();
         assert_eq!(value["version"], 1);
         assert!(value["today"].is_array());
-        assert!(!dir.join("brief.json.tmp").exists());
+        assert!(!dir.join("brief.tmp").exists());
+        assert!(dir.join(SCHEMA_FILE_NAME).exists());
+    }
+
+    /// The schema must describe exactly the fields the app writes.
+    #[test]
+    fn schema_matches_what_is_written() {
+        let (db, _) = temp_db();
+        let today = d("2026-10-28");
+        db.add_todo(None, None, "a", Some(today), None).unwrap();
+        db.save_dday(&crate::db::DDay { id: 0, title: "x".into(), date: d("2026-11-01"), color: 0, image: None, yearly: false, count_from_one: false, shape: "normal".into(), position: 0 }).unwrap();
+        let brief = build(&db, today).unwrap();
+        let mut value = serde_json::to_value(&brief).unwrap();
+        value["today"] = serde_json::json!([BriefEvent { title: "t".into(), start: None, end: None, all_day: true, location: String::new(), cancelled: false }]);
+        let schema: serde_json::Value = serde_json::from_str(SCHEMA).unwrap();
+
+        let keys = |v: &serde_json::Value| -> std::collections::BTreeSet<String> { v.as_object().unwrap().keys().cloned().collect() };
+        assert_eq!(keys(&value), keys(&schema["properties"]));
+        assert_eq!(keys(&value["today"][0]), keys(&schema["$defs"]["event"]["properties"]));
+        assert_eq!(keys(&value["todos_today"][0]), keys(&schema["$defs"]["todo"]["properties"]));
+        assert_eq!(keys(&value["ddays"][0]), keys(&schema["$defs"]["dday"]["properties"]));
+        assert_eq!(value["version"], 1);
     }
 }

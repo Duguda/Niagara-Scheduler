@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, Sunrise, SwatchBook, RefreshCw,
+    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Gem,
     CalendarDays, PanelRight, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
   } from '@lucide/svelte';
   import { calPrefs, setCalPrefs } from '../lib/calPrefs.svelte';
@@ -9,7 +9,8 @@
   import { WIDGETS, type WidgetId } from '../lib/home.svelte';
   import { broadcastPrefs } from '../lib/sync.svelte';
   import Modal from '../components/Modal.svelte';
-  import { api, type BackupManifest } from '../lib/api';
+  import { api, type BackupManifest, type StorageInfo } from '../lib/api';
+  import { DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, VAULT_KEY } from '../lib/obsidian';
   import { backupError, exportBackup, pickBackup } from '../lib/backup';
   import { fmtTs } from '../lib/dates';
   import { i18n, setLocale, t, type Locale } from '../lib/i18n.svelte';
@@ -89,18 +90,31 @@
     loadSavedSizes().then((s) => (saved = s));
   });
 
-  // Morning brief feed (src-tauri/src/brief.rs): show where it is and allow a manual refresh.
-  let briefPath = $state('');
+  // Where Niagara keeps things (src-tauri/src/storage.rs), plus the Obsidian folders from the Notes page.
+  let storage = $state<StorageInfo | null>(null);
+  let vaultDir = $state('');
+  let exportDir = $state('');
   async function refreshBrief(announce: boolean) {
     try {
-      briefPath = await api.refreshBrief();
+      await api.refreshBrief();
       if (announce) toast(t('brief.updated'), 'success');
     } catch (e) {
       if (announce) toast(String(e), 'error');
     }
   }
-  onMount(() => {
+  async function reveal(path: string) {
+    try {
+      const { revealItemInDir } = await import('@tauri-apps/plugin-opener');
+      await revealItemInDir(path);
+    } catch (e) {
+      toast(String(e), 'error');
+    }
+  }
+  onMount(async () => {
     refreshBrief(false);
+    storage = await api.storageInfo().catch(() => null);
+    vaultDir = (await api.getSetting(VAULT_KEY).catch(() => null)) ?? '';
+    exportDir = (await api.getSetting(EXPORT_DIR_KEY).catch(() => null)) || DEFAULT_EXPORT_DIR;
   });
 
   async function saveCurrent() {
@@ -512,15 +526,52 @@
 
     <section class="card">
       <div class="section-head">
-        <div class="icon"><Sunrise size={18} /></div>
+        <div class="icon"><FolderTree size={18} /></div>
         <div>
-          <h2>{t('brief.title')}</h2>
-          <p class="muted small">{t('brief.body')}</p>
+          <h2>{t('store.title')}</h2>
+          <p class="muted small">{storage ? (storage.portable ? t('store.portable') : t('store.appData')) : ''}</p>
         </div>
       </div>
-      <div class="brief-row">
-        <span class="brief-path small truncate" title={briefPath}>{briefPath || '—'}</span>
-        <button class="btn small" onclick={() => refreshBrief(true)}><RefreshCw size={14} /> {t('brief.refresh')}</button>
+      <div class="store-rows">
+        {#if storage}
+          <div class="store-row">
+            <div class="store-text">
+              <span class="strong small">{t('store.data')}</span>
+              <span class="muted small">{t('store.dataHint')}</span>
+            </div>
+            <span class="brief-path small truncate" title={storage.data}>{storage.data}</span>
+            <button class="btn small" onclick={() => storage && reveal(storage.data)}><FolderOpen size={14} /> {t('store.open')}</button>
+          </div>
+          <div class="store-row">
+            <div class="store-text">
+              <span class="strong small">{t('store.brief')}</span>
+              <span class="muted small">{t('brief.body')}</span>
+            </div>
+            <span class="brief-path small truncate" title={storage.brief}>{storage.brief}</span>
+            <div class="store-actions">
+              <button class="btn small" onclick={() => refreshBrief(true)}><RefreshCw size={14} /> {t('brief.refresh')}</button>
+              <button class="btn small" onclick={() => storage && reveal(storage.brief)}><FolderOpen size={14} /> {t('store.open')}</button>
+            </div>
+          </div>
+        {/if}
+        <div class="store-row">
+          <div class="store-text">
+            <span class="strong small">{t('store.notes')}</span>
+            <span class="muted small">{t('store.notesHint')}</span>
+          </div>
+          <span class="brief-path small truncate" class:unset={!vaultDir} title={vaultDir}>{vaultDir || t('store.notSet')}</span>
+          <button class="btn small" onclick={() => (ui.page = 'notes')}><Gem size={14} /> {t('store.change')}</button>
+        </div>
+        {#if vaultDir}
+          <div class="store-row">
+            <div class="store-text">
+              <span class="strong small">{t('store.export')}</span>
+              <span class="muted small">{t('store.exportHint')}</span>
+            </div>
+            <span class="brief-path small truncate" title={exportDir}>{exportDir}</span>
+            <button class="btn small" onclick={() => (ui.page = 'notes')}><Gem size={14} /> {t('store.change')}</button>
+          </div>
+        {/if}
       </div>
     </section>
 
@@ -1078,10 +1129,38 @@
       grid-template-columns: minmax(0, 1fr);
     }
   }
-  .brief-row {
+  .store-rows {
     display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .store-row {
+    display: grid;
+    grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+  }
+  .store-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .store-row > .btn {
+    justify-self: start;
+  }
+  .store-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .brief-path.unset {
+    font-family: inherit;
+    color: var(--faint);
+  }
+  @container main (max-width: 760px) {
+    .store-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
   .brief-path {
     flex: 1;

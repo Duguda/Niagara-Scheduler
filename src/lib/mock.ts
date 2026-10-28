@@ -215,6 +215,7 @@ export function installMock() {
       }
       case 'obsidian_open_url': return 'obsidian://open?path=' + encodeURIComponent(a.path);
       case 'export_memo_to_obsidian': return 'Niagara/' + (memos.find((m) => m.id === a.id)?.title ?? 'Untitled') + '.md';
+      case 'storage_info': return { base: 'D:\\Program Files\\Niagara Scheduler', data: 'D:\\Program Files\\Niagara Scheduler\\data', brief: 'D:\\Program Files\\Niagara Scheduler\\brief', portable: true };
       case 'refresh_brief': return 'C:\\Users\\me\\AppData\\Roaming\\com.niagara.scheduler\\brief.json';
       case 'events_between': {
         const out: CalEvent[] = [];

@@ -447,7 +447,25 @@ pub fn export_memo_to_obsidian(state: State<AppState>, id: i64) -> CmdResult<Str
 #[tauri::command]
 pub fn refresh_brief(state: State<AppState>) -> CmdResult<String> {
     let db = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
-    crate::brief::refresh(&db, &state.data_dir).map(|p| p.to_string_lossy().into_owned())
+    crate::brief::refresh(&db, &state.storage.brief).map(|p| p.to_string_lossy().into_owned())
+}
+
+// ---- storage -------------------------------------------------------------------------
+
+#[derive(serde::Serialize)]
+pub struct StorageInfo {
+    pub base: String,
+    pub data: String,
+    pub brief: String,
+    pub portable: bool,
+}
+
+/// Where Niagara keeps its files, for Settings.
+#[tauri::command]
+pub fn storage_info(state: State<AppState>) -> StorageInfo {
+    let s = &state.storage;
+    let text = |p: &std::path::Path| p.to_string_lossy().into_owned();
+    StorageInfo { base: text(&s.base), data: text(&s.data), brief: text(&s.brief), portable: s.portable }
 }
 
 // ---- reading log ------------------------------------------------------------------

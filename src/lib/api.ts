@@ -252,6 +252,17 @@ export interface BackupManifest {
   counts: { events: number; todos: number; memos: number; ddays: number; bookmarks: number; expenses: number; books?: number; meals?: number; workouts?: number; commissions?: number; diary?: number; images: number };
 }
 
+/** Niagara's folders (see src-tauri/src/storage.rs). */
+export interface StorageInfo {
+  base: string;
+  /** Database and images. */
+  data: string;
+  /** brief.json and brief.schema.json, for other tools. */
+  brief: string;
+  /** True when the folders sit next to the installed program. */
+  portable: boolean;
+}
+
 /** A Markdown note in the Obsidian vault (see src-tauri/src/obsidian.rs). */
 export interface NoteMeta {
   /** Path inside the vault, `/`-separated. */
@@ -411,6 +422,7 @@ export const api = {
   obsidianOpenUrl: (path: string) => invoke<string>('obsidian_open_url', { path }),
   exportMemoToObsidian: (id: number) => invoke<string>('export_memo_to_obsidian', { id }),
   refreshBrief: () => invoke<string>('refresh_brief'),
+  storageInfo: () => invoke<StorageInfo>('storage_info'),
 
   memos: () => invoke<Memo[]>('memos'),
   createMemo: (title: string, groupId: number | null = null) => invoke<number>('create_memo', { title, groupId }),

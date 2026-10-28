@@ -14,6 +14,7 @@ mod obsidian;
 mod panel;
 mod reading;
 mod recurrence;
+mod storage;
 mod reminders;
 mod tracker;
 
@@ -29,6 +30,8 @@ pub struct AppState {
     pub images_dir: PathBuf,
     /// Folder holding the database and images (backups are staged here).
     pub data_dir: PathBuf,
+    /// All of Niagara's folders (see storage.rs).
+    pub storage: storage::Storage,
 }
 
 /// Serves stored D-Day images to the webview as `noraimg://localhost/<file>`
@@ -71,11 +74,10 @@ fn main() {
         .on_window_event(panel::on_window_event)
         .register_uri_scheme_protocol("noraimg", |ctx, request| serve_image(ctx.app_handle(), request))
         .setup(|app| {
+            // Data next to the program when possible, else in the app-data folder (see storage.rs).
             // NORA_DATA_DIR lets you point the app at a scratch database while developing.
-            let dir = match std::env::var_os("NORA_DATA_DIR") {
-                Some(dir) => dir.into(),
-                None => app.path().app_data_dir()?,
-            };
+            let storage = storage::resolve(&app.path().app_data_dir()?);
+            let dir = storage.data.clone();
             std::fs::create_dir_all(&dir)?;
             // Finish an import or "delete all data" requested before the restart.
             if let Err(e) = backup::apply_pending(&dir) {
@@ -89,9 +91,9 @@ fn main() {
                 images::collect_garbage(&images_dir, &keep);
             }
             reminders::start(app.handle().clone(), db_path.clone());
-            brief::start(db_path.clone(), dir.clone());
+            brief::start(db_path.clone(), storage.brief.clone());
             let tracker = tracker::start(db_path, tracker::TrackerSettings::load(&db));
-            app.manage(AppState { db: Mutex::new(db), tracker, images_dir, data_dir: dir });
+            app.manage(AppState { db: Mutex::new(db), tracker, images_dir, data_dir: dir, storage });
 
             // The main window starts hidden (tauri.conf.json). Started from sign-in, only the panel
             // shows; otherwise the main window does, plus the panel if it was left on.
@@ -121,6 +123,7 @@ fn main() {
             commands::obsidian_open_url,
             commands::export_memo_to_obsidian,
             commands::refresh_brief,
+            commands::storage_info,
             commands::export_data,
             commands::inspect_backup,
             commands::import_data,

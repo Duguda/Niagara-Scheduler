@@ -123,14 +123,18 @@ pub fn read(root: &Path, rel: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// Notes with at least one `**bold**` span (study material), with how many, most recent first.
-pub fn bold_notes(root: &Path) -> io::Result<Vec<(NoteMeta, usize)>> {
+/// Notes tagged for recall practice that have `**bold**` blanks, with how many, most recent first.
+pub fn study_notes(root: &Path) -> io::Result<Vec<(NoteMeta, usize)>> {
     Ok(list(root)?
         .into_iter()
         .filter(|n| n.size <= MAX_NOTE_BYTES)
         .filter_map(|n| {
             let text = fs::read(root.join(&n.path)).ok()?;
-            let count = crate::cloze::count_bold(&String::from_utf8_lossy(&text));
+            let text = String::from_utf8_lossy(&text);
+            if !crate::cloze::has_study_tag(&text) {
+                return None;
+            }
+            let count = crate::cloze::count_bold(&text);
             (count > 0).then_some((n, count))
         })
         .collect())

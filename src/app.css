@@ -800,3 +800,72 @@ input[type='time'] {
 .event-block.cancelled * {
   text-decoration: line-through;
 }
+
+/* Obsidian syntax in rendered notes (Obsidian page, recall practice). */
+.prose .ob-link {
+  color: var(--primary);
+  text-decoration: none;
+  border-bottom: 1px dashed color-mix(in srgb, var(--primary) 50%, transparent);
+}
+.prose .ob-embed {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.prose li:has(> input[type='checkbox']) {
+  list-style: none;
+  margin-left: -1.3em;
+}
+.prose li > input[type='checkbox'] {
+  margin-right: 6px;
+}
+.prose mark {
+  background: color-mix(in srgb, #f5d547 55%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.prose blockquote.ob-callout {
+  margin: 14px 0;
+  padding: 10px 14px;
+  border: none;
+  border-left: 4px solid var(--callout, var(--primary));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--callout, var(--primary)) 9%, var(--surface));
+  color: inherit;
+  font-style: normal;
+}
+.prose .ob-callout-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--callout, var(--primary));
+}
+.prose .ob-callout[data-callout='warning'],
+.prose .ob-callout[data-callout='caution'],
+.prose .ob-callout[data-callout='attention'] {
+  --callout: #e08a1e;
+}
+.prose .ob-callout[data-callout='danger'],
+.prose .ob-callout[data-callout='error'],
+.prose .ob-callout[data-callout='bug'],
+.prose .ob-callout[data-callout='failure'] {
+  --callout: #e05252;
+}
+.prose .ob-callout[data-callout='tip'],
+.prose .ob-callout[data-callout='success'],
+.prose .ob-callout[data-callout='check'],
+.prose .ob-callout[data-callout='done'] {
+  --callout: #2f9e6e;
+}
+.prose .ob-callout[data-callout='question'],
+.prose .ob-callout[data-callout='faq'],
+.prose .ob-callout[data-callout='help'] {
+  --callout: #c08a1e;
+}
+.prose .ob-callout[data-callout='quote'],
+.prose .ob-callout[data-callout='cite'] {
+  --callout: var(--muted);
+}

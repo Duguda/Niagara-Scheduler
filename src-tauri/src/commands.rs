@@ -466,7 +466,7 @@ pub struct ClozeSource {
     pub seen: i64,
 }
 
-/// Notes and memos that have `**bold**` text to study, with today's review counts.
+/// Notes and memos tagged `#암기` that have `**bold**` blanks, with today's review counts.
 #[tauri::command]
 pub async fn cloze_sources(state: State<'_, AppState>) -> CmdResult<Vec<ClozeSource>> {
     let today = crate::cloze::today();
@@ -490,6 +490,9 @@ pub async fn cloze_sources(state: State<'_, AppState>) -> CmdResult<Vec<ClozeSou
     let mut out: Vec<ClozeSource> = memos
         .into_iter()
         .filter_map(|m| {
+            if !crate::cloze::has_study_tag(&m.body) {
+                return None;
+            }
             let blanks = crate::cloze::count_bold(&m.body);
             let place = m.group_id.and_then(|g| group_name.get(&g).cloned()).unwrap_or_default();
             (blanks > 0).then(|| with_stats(format!("memo:{}", m.id), m.title, place, blanks))
@@ -497,7 +500,7 @@ pub async fn cloze_sources(state: State<'_, AppState>) -> CmdResult<Vec<ClozeSou
         .collect();
     if let Some(root) = vault.filter(|v| !v.trim().is_empty()) {
         let root = std::path::PathBuf::from(root);
-        let notes = tauri::async_runtime::spawn_blocking(move || crate::obsidian::bold_notes(&root))
+        let notes = tauri::async_runtime::spawn_blocking(move || crate::obsidian::study_notes(&root))
             .await
             .map_err(|e| e.to_string())?
             .unwrap_or_default();

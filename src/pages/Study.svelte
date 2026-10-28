@@ -4,7 +4,7 @@
   import { onMount, tick } from 'svelte';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
-  import { Brain, Eye, EyeOff, Gem, NotebookPen, RotateCcw, Search } from '@lucide/svelte';
+  import { Brain, ChevronDown, ChevronRight, Eye, EyeOff, Folder, Gem, NotebookPen, RotateCcw, Search } from '@lucide/svelte';
   import ConfirmButton from '../components/ConfirmButton.svelte';
   import { api, type ClozeSource, type ClozeStat } from '../lib/api';
   import { clozeHtml, hiddenIn, isDue, isWeak, type BlankState, type StudyMode } from '../lib/cloze';
@@ -29,12 +29,24 @@
   let doc = $state<HTMLDivElement>();
 
   const dueTotal = $derived(sources.reduce((n, s) => n + s.due, 0));
-  const shownSources = $derived.by(() => {
+  /** Sources grouped by where they live: vault folders first (A–Z), then memo groups. */
+  const groups = $derived.by(() => {
     const q = search.trim().toLowerCase();
-    return sources
-      .filter((s) => !q || s.title.toLowerCase().includes(q) || s.place.toLowerCase().includes(q))
-      .sort((a, b) => b.due - a.due || b.weak - a.weak || a.title.localeCompare(b.title));
+    const map = new Map<string, { id: string; label: string; memo: boolean; items: ClozeSource[]; due: number }>();
+    for (const s of sources) {
+      if (q && !s.title.toLowerCase().includes(q) && !s.place.toLowerCase().includes(q)) continue;
+      const memo = s.source.startsWith('memo:');
+      const id = `${memo ? 'memo' : 'ob'}:${s.place}`;
+      const label = s.place ? s.place.split('/').join(' / ') : memo ? t('memo.ungrouped') : t('ob.root');
+      const g = map.get(id) ?? { id, label, memo, items: [], due: 0 };
+      g.items.push(s);
+      g.due += s.due;
+      map.set(id, g);
+    }
+    for (const g of map.values()) g.items.sort((a, b) => b.due - a.due || b.weak - a.weak || a.title.localeCompare(b.title));
+    return [...map.values()].sort((a, b) => Number(a.memo) - Number(b.memo) || a.id.localeCompare(b.id));
   });
+  let collapsed = $state<Record<string, boolean>>({});
   const inScope = $derived(keys.filter((k) => hiddenIn(mode, stats[k], today)));
   const tally = $derived.by(() => {
     tallyVersion;
@@ -243,21 +255,30 @@
       <input class="input" placeholder={t('study.search')} bind:value={search} />
     </div>
     <div class="list">
-      {#each shownSources as s (s.source)}
-        <button class="src-item" class:active={current?.source === s.source} onclick={() => open(s)}>
-          <span class="s-title">
-            {#if s.source.startsWith('ob:')}<Gem size={13} />{:else}<NotebookPen size={13} />{/if}
-            <span class="truncate">{s.title || t('common.untitled')}</span>
-          </span>
-          <span class="s-meta">
-            <span class="truncate">{s.place || (s.source.startsWith('ob:') ? t('ob.root') : t('memo.ungrouped'))}</span>
-            <span class="tags">
-              <span class="faint">{t('study.blanks', { n: s.blanks })}</span>
-              {#if s.due}<span class="due">{t('study.due', { n: s.due })}</span>{/if}
-              {#if s.weak}<span class="weak">{t('study.weak', { n: s.weak })}</span>{/if}
-            </span>
-          </span>
+      {#each groups as g (g.id)}
+        <button class="group-head" onclick={() => (collapsed[g.id] = !collapsed[g.id])} aria-expanded={!collapsed[g.id]}>
+          {#if collapsed[g.id]}<ChevronRight size={14} />{:else}<ChevronDown size={14} />{/if}
+          {#if g.memo}<NotebookPen size={13} />{:else}<Folder size={13} />{/if}
+          <span class="truncate">{g.label}</span>
+          <span class="g-count">{#if g.due}<span class="due">{g.due}</span>{/if}<span class="faint">{g.items.length}</span></span>
         </button>
+        {#if !collapsed[g.id]}
+          {#each g.items as s (s.source)}
+            <button class="src-item" class:active={current?.source === s.source} onclick={() => open(s)}>
+              <span class="s-title">
+                {#if s.source.startsWith('ob:')}<Gem size={13} />{:else}<NotebookPen size={13} />{/if}
+                <span class="truncate">{s.title || t('common.untitled')}</span>
+              </span>
+              <span class="s-meta">
+                <span class="faint">{t('study.blanks', { n: s.blanks })}</span>
+                <span class="tags">
+                  {#if s.due}<span class="due">{t('study.due', { n: s.due })}</span>{/if}
+                  {#if s.weak}<span class="weak">{t('study.weak', { n: s.weak })}</span>{/if}
+                </span>
+              </span>
+            </button>
+          {/each}
+        {/if}
       {:else}
         {#if !loading}<p class="muted small empty-list">{sources.length ? t('common.noMatch') : t('study.emptyList')}</p>{/if}
       {/each}
@@ -360,6 +381,38 @@
     gap: 2px;
     padding: 3px 4px 8px;
   }
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    margin-top: 6px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+  }
+  .group-head:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .group-head :global(svg) {
+    flex: none;
+  }
+  .g-count {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+  }
   .src-item {
     display: flex;
     flex: none;
@@ -367,7 +420,7 @@
     gap: 3px;
     width: 100%;
     min-width: 0;
-    padding: 9px 12px;
+    padding: 8px 12px 8px 26px;
     border: 2px solid transparent;
     border-radius: var(--radius);
     background: transparent;

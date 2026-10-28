@@ -1,12 +1,13 @@
 {
   "name": "niagara-scheduler",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "preview:build": "VITE_PREVIEW=1 vite build --base ./ --outDir dist-preview",
     "tauri": "tauri"
   },
   "engines": {

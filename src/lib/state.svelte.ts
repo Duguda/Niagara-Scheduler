@@ -118,10 +118,19 @@ export async function setTheme(theme: ThemePref) {
   broadcastPrefs();
 }
 
+/** Theme picked by the browser preview's URL (?theme=dark); storage can be unavailable there. */
+function previewPref(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
 export async function initTheme() {
-  const saved = (await api.getSetting('ui.theme').catch(() => null)) ?? localStorage.getItem('nora.previewTheme');
+  const saved = (await api.getSetting('ui.theme').catch(() => null)) ?? previewPref('nora.previewTheme');
   if (saved === 'light' || saved === 'dark' || saved === 'system') ui.theme = saved;
-  const accent = (await api.getSetting('ui.accent').catch(() => null)) ?? localStorage.getItem('nora.previewAccent');
+  const accent = (await api.getSetting('ui.accent').catch(() => null)) ?? previewPref('nora.previewAccent');
   ui.customTheme = parseCustomTheme(await api.getSetting('ui.customTheme').catch(() => null));
   if (accent === 'custom' || ACCENTS.includes(accent as PresetAccent)) ui.accent = accent as Accent;
   applyTheme();

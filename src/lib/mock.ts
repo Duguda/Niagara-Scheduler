@@ -192,9 +192,9 @@ export function installMock() {
   // A tiny Obsidian vault for the browser preview of the Obsidian page.
   const vaultNotes: Record<string, string> = {
     'Home.md': '---\ntags: [hub]\n---\n# Home\n\nStudy hub. See [[SQL 정리]] and [[Network|network notes]].\n\n> [!tip] Today\n> Review ==JOIN== before the exam.\n\n![[diagram.png]]',
-    '10 Study/SQL 정리.md': '# SQL 정리\n\n- [x] SELECT\n- [ ] JOIN\n\n> [!warning] 주의\n> GROUP BY 다음에 HAVING.\n\n```sql\nSELECT * FROM t; -- [[not a link]]\n```\n\nBack to [[Home]]. Also [network](Network.md).\n\n![chart](img/chart.png)',
+    '10 Study/SQL 정리.md': '# SQL 정리 #암기\n\n- **INNER JOIN**: 양쪽에 다 있는 행\n- [x] SELECT\n- [ ] JOIN\n\n> [!warning] 주의\n> GROUP BY 다음에 HAVING.\n\n```sql\nSELECT * FROM t; -- [[not a link]]\n```\n\nBack to [[Home]]. Also [network](Network.md).\n\n![chart](img/chart.png)',
     '10 Study/Network.md': '# Network\n\nOSI 7 layers.',
-    '10 Study/네트워크관리사.md': '# 네트워크관리사 2급 핵심\n\nOSI 7계층 중 라우팅을 담당하는 계층은 **네트워크 계층**이다. 스위치는 **데이터 링크 계층**에서 동작한다.\n\n- C 클래스 기본 서브넷 마스크: **255.255.255.0**\n- TCP 연결 수립: **3-way handshake**\n- DNS 기본 포트: **53**\n\n> [!tip] 헷갈림\n> UDP 포트 **53**도 DNS가 쓴다.',
+    '10 Study/네트워크관리사.md': '# 네트워크관리사 2급 핵심 #암기\n\nOSI 7계층 중 라우팅을 담당하는 계층은 **네트워크 계층**이다. 스위치는 **데이터 링크 계층**에서 동작한다.\n\n- C 클래스 기본 서브넷 마스크: **255.255.255.0**\n- TCP 연결 수립: **3-way handshake**\n- DNS 기본 포트: **53**\n\n> [!tip] 헷갈림\n> UDP 포트 **53**도 DNS가 쓴다.',
     '20 Daily/2026-10-28.md': 'Ran 5km.',
   };
   const previewLocale = new URLSearchParams(location.search).get('locale');
@@ -222,8 +222,8 @@ export function installMock() {
       case 'export_memo_to_obsidian': return 'Niagara/' + (memos.find((m) => m.id === a.id)?.title ?? 'Untitled') + '.md';
       case 'cloze_sources':
         return [
-          ...memos.filter((m) => m.body.includes('**')).map((m) => ({ source: `memo:${m.id}`, title: m.title, place: '', blanks: (m.body.match(/\*\*[^*]+\*\*/g) ?? []).length, due: 0, weak: 0, seen: 0 })),
-          ...Object.entries(vaultNotes).filter(([, text]) => text.includes('**')).map(([path, text]) => ({
+          ...memos.filter((m) => m.body.includes('**') && m.body.includes('#암기')).map((m) => ({ source: `memo:${m.id}`, title: m.title, place: '', blanks: (m.body.match(/\*\*[^*]+\*\*/g) ?? []).length, due: 0, weak: 0, seen: 0 })),
+          ...Object.entries(vaultNotes).filter(([, text]) => text.includes('**') && text.includes('#암기')).map(([path, text]) => ({
             source: `ob:${path}`, title: path.split('/').pop()!.replace(/\.md$/, ''), place: path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '',
             blanks: (text.match(/\*\*[^*]+\*\*/g) ?? []).length,
             due: Object.values(cloze).filter((c) => c.key.startsWith(`ob:${path}|`) && c.due <= ymd(new Date())).length,

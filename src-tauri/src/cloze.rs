@@ -158,6 +158,72 @@ pub fn count_bold(text: &str) -> usize {
     n
 }
 
+/// The tag that opts a note or memo into recall practice (`#암기`, or `암기` in front-matter tags).
+pub const STUDY_TAG: &str = "암기";
+
+/// True when the text carries the study tag: `#암기` (or a nested `#암기/과목`) in the body outside
+/// code, or `암기` in the front matter's `tags`. Bold text alone is often just emphasis.
+pub fn has_study_tag(text: &str) -> bool {
+    let mut lines = text.lines().peekable();
+    // Front matter: `tags: [암기, …]`, `tags: 암기`, or a `tags:` block list.
+    if lines.peek().is_some_and(|l| l.trim() == "---") {
+        lines.next();
+        let mut in_tags = false;
+        for line in lines.by_ref() {
+            let t = line.trim();
+            if t == "---" {
+                break;
+            }
+            let tag_ok = |v: &str| {
+                let v = v.trim().trim_matches(|c| c == '"' || c == '\'').trim_start_matches('#');
+                v == STUDY_TAG || v.starts_with(&format!("{STUDY_TAG}/"))
+            };
+            if let Some(rest) = t.strip_prefix("tags:").or_else(|| t.strip_prefix("tag:")) {
+                let rest = rest.trim().trim_start_matches('[').trim_end_matches(']');
+                if rest.split(',').any(tag_ok) {
+                    return true;
+                }
+                in_tags = rest.is_empty();
+            } else if in_tags && t.starts_with('-') {
+                if tag_ok(&t[1..]) {
+                    return true;
+                }
+            } else {
+                in_tags = false;
+            }
+        }
+    }
+    let mut in_fence = false;
+    for line in lines {
+        let t = line.trim_start();
+        if t.starts_with("```") || t.starts_with("~~~") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence {
+            continue;
+        }
+        let mut in_code = false;
+        let chars: Vec<char> = line.chars().collect();
+        let tag: Vec<char> = format!("#{STUDY_TAG}").chars().collect();
+        for i in 0..chars.len() {
+            if chars[i] == '`' {
+                in_code = !in_code;
+            }
+            if in_code || chars[i..].len() < tag.len() || chars[i..i + tag.len()] != tag[..] {
+                continue;
+            }
+            let before_ok = i == 0 || chars[i - 1].is_whitespace() || "([".contains(chars[i - 1]);
+            let after = chars.get(i + tag.len());
+            let after_ok = after.is_none_or(|c| c.is_whitespace() || *c == '/' || ",.;:!?)]".contains(*c));
+            if before_ok && after_ok {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Records grouped by source, for callers that need a lookup.
 pub fn by_source(rows: Vec<SourceDue>) -> HashMap<String, SourceDue> {
     rows.into_iter().map(|r| (r.source.clone(), r)).collect()
@@ -198,6 +264,19 @@ mod tests {
         db.cloze_reset("ob:SQL.md").unwrap();
         assert!(db.cloze_stats("ob:SQL.md").unwrap().is_empty());
         assert_eq!(db.cloze_stats("memo:3").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn the_study_tag_opts_a_note_in() {
+        assert!(has_study_tag("# SQL #암기\n**JOIN**"));
+        assert!(has_study_tag("#암기/네트워크관리사 **53**"));
+        assert!(has_study_tag("---\ntags: [sql, 암기]\n---\n**JOIN**"));
+        assert!(has_study_tag("---\ntags:\n  - 공부\n  - \"#암기\"\n---\nbody"));
+        assert!(!has_study_tag("**JOIN** just emphasis"));
+        assert!(!has_study_tag("#암기장 is another tag"));
+        assert!(!has_study_tag("`#암기` in code"));
+        assert!(!has_study_tag("```\n#암기\n```"));
+        assert!(!has_study_tag("url#암기"));
     }
 
     #[test]

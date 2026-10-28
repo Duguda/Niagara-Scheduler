@@ -1,4 +1,6 @@
-# Nora Schedule
+# Niagara Scheduler
+
+> [Nora Schedule](https://github.com/ImgyeongLee/NoraSchedule) (by Imgyeong Lee, MIT)을 포크해서 개인용으로 재구성한 버전이에요. 바뀐 점은 [docs/CHANGES.md](docs/CHANGES.md)를 보세요.
 
 일정, 할 일, 디데이, 메모, 식단·운동, 독서 기록, 집중 시간까지 한 곳에서 관리하는 가벼운 데스크톱 스케줄러입니다.
 모든 데이터는 내 컴퓨터에만 저장돼요.
@@ -81,7 +83,7 @@ Windows 10/11 그리고 macOS (Apple Silicon · M1 이후) 호환
 | Tauri 플러그인 | autostart, dialog, notification, opener, single-instance, window-state |
 | 작업 시간 추적 | active-win-pos-rs (현재 활성 창 읽기) |
 
-데이터는 OS의 앱 데이터 폴더(Windows: `%APPDATA%\com.nora.schedule`, macOS: `~/Library/Application Support/com.nora.schedule`)에 SQLite 파일과 이미지 폴더로 저장돼요.
+데이터는 OS의 앱 데이터 폴더(Windows: `%APPDATA%\com.niagara.scheduler`, macOS: `~/Library/Application Support/com.niagara.scheduler`)에 SQLite 파일과 이미지 폴더로 저장돼요.
 
 ## 직접 빌드하기
 
@@ -97,7 +99,7 @@ npm run tauri dev      # 개발 모드로 실행
 npm run tauri build    # 설치 파일 만들기
 ```
 
-빌드 결과물은 `src-tauri/target/release/bundle/` 아래에 생겨요 (Windows: `nsis/…-setup.exe`, `msi/….msi` · macOS: `macos/Nora Schedule.app`, `dmg/….dmg`).
+빌드 결과물은 `src-tauri/target/release/bundle/` 아래에 생겨요 (Windows: `nsis/…-setup.exe`, `msi/….msi` · macOS: `macos/Niagara Scheduler.app`, `dmg/….dmg`).
 
 그 밖의 명령:
 

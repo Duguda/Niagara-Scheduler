@@ -1,8 +1,9 @@
-# Nora Schedule (Duguda 개량판) — Claude 컨텍스트
+# Niagara Scheduler — Claude 컨텍스트
 
 새 대화를 시작하면 이 파일 하나만 읽고 시작한다.
 
 ## 개요
+- 레포: [Duguda/Niagara-Scheduler](https://github.com/Duguda/Niagara-Scheduler) (upstream 리모트 = 원본)
 - 원본: [ImgyeongLee/NoraSchedule](https://github.com/ImgyeongLee/NoraSchedule) v0.5.0 (MIT, Copyright 2026 Imgyeong Lee)
 - 목적: 개인용 데스크톱 일정·생활 관리 앱을 내 생활 방식에 맞게 개량
 - 방향: 불필요한 기능 제거 → 옵시디언·모닝 브리프 연동 → 내 루틴(자격증, 러닝, 집중) 중심 기능 추가
@@ -35,13 +36,14 @@ docs/                이 문서들
 ```
 
 ## 데이터 위치
-- Windows: `%APPDATA%\com.nora.schedule\nora.sqlite3` (+ `-wal`, `-shm`), 이미지는 `images\`
+- Windows: `%APPDATA%\com.niagara.scheduler\nora.sqlite3` (+ `-wal`, `-shm`), 이미지는 `images\`
+- 원본 Nora 앱 데이터(`%APPDATA%\com.nora.schedule`)와는 분리됨. 옮길 때는 원본에서 `.nora` 백업 내보내기 → Niagara에서 가져오기
 - 환경변수 `NORA_DATA_DIR`로 다른 폴더 지정 가능 (개발 시 원본 데이터 보호용으로 사용할 것)
 
 ## 현재 상태
-- v0.5.1: TRPG 기능 제거 완료
+- v0.5.1: TRPG 기능 제거, 이름을 Niagara Scheduler로 변경
 - 검증: `npm run check` 오류 0, `npm run build`, `cargo test` 통과 여부는 CHANGES.md 참고
-- identifier는 아직 원본과 같은 `com.nora.schedule` → 원본 앱과 같은 DB를 씀
+- identifier `com.niagara.scheduler` → 원본 앱과 별도 데이터 폴더
 
 ## 의사결정 로그
 | 날짜 | 결정 | 채택/미채택 | 근거 |
@@ -49,6 +51,8 @@ docs/                이 문서들
 | 2026-10-28 | 원본을 포크해서 개량 | 채택 | MIT라 수정·재배포 가능. 저작권 표시만 유지 |
 | 2026-10-28 | TRPG 기능 제거 | 채택 | 사용하지 않음 |
 | 2026-10-28 | 기존 DB의 `trpg_entries` 테이블은 삭제하지 않고 방치 | 채택 | 원본 앱과 DB를 공유 중이라 데이터 파괴 위험. 생성·마이그레이션 코드만 제거 |
+| 2026-10-28 | 앱 이름 Niagara Scheduler, identifier `com.niagara.scheduler` | 채택 | 원본 브랜드와 구분, 원본 DB와 분리해 안전하게 스키마 변경 |
+| 2026-10-28 | 내부 이름(`.nora` 백업 확장자, `nora.sqlite3`, `noraimg:` 프로토콜, `nora.*` 저장 키, `NORA_DATA_DIR`)은 유지 | 채택 | 원본 백업을 그대로 가져올 수 있게 호환성 유지. 사용자에게 보이는 이름만 변경 |
 | 2026-10-28 | 공유되던 번역 키 `trpg.year/noMatch/playUnit` → `common.year/noMatch/timesUnit` | 채택 | 일기·외주 화면이 계속 사용 |
 
 ## 개선 로드맵
@@ -57,7 +61,7 @@ docs/                이 문서들
 3. 그 외 추천 기능은 아래 "미결정 사항"에서 선택
 
 ## 미결정 사항
-- 앱 이름·identifier 변경 여부 (공개 배포 시 변경 권장, 변경하면 데이터 폴더도 바뀜)
+- 아이콘 교체 여부 (아직 원본 아이콘)
 - 외주(커미션)·북마크 등 다른 기능도 뺄지
 - 옵시디언 연동 방식: 읽기 전용 / 단방향 가져오기 / 양방향 동기화
 - 추천 기능 중 무엇을 할지

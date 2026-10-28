@@ -185,7 +185,7 @@ fn main() {
             commands::set_tracker_settings,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Nora Schedule")
+        .expect("error while building Niagara Scheduler")
         .run(|_app, _event| {
             // macOS: clicking the Dock icon while only the panel is showing brings the app back.
             #[cfg(target_os = "macos")]

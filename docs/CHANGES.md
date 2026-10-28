@@ -9,3 +9,9 @@
 - 공유 번역 키 이름 변경: `trpg.year` → `common.year`, `trpg.noMatch` → `common.noMatch`, `trpg.playUnit` → `common.timesUnit`
 - README에서 TRPG 설명 제거
 - `docs/` (Claude.md, CHANGES.md) 추가
+- 이름 변경: Nora Schedule → **Niagara Scheduler**
+  - productName, 창 제목, 알림 제목, 번역 문구(영어·한국어·일본어), 백업 기본 파일명
+  - identifier `com.nora.schedule` → `com.niagara.scheduler` (데이터 폴더 분리)
+  - 패키지명 `niagara-scheduler`, 버전 0.5.1
+  - 내부 이름과 `.nora` 백업 형식은 원본 호환을 위해 유지
+- README에 원본 출처 표기, LICENSE에 수정자 저작권 줄 추가

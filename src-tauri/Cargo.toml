@@ -1,6 +1,6 @@
 [package]
-name = "nora-schedule"
-version = "0.5.0"
+name = "niagara-scheduler"
+version = "0.5.1"
 description = "A light desktop schedule manager"
 edition = "2024"
 

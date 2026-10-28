@@ -92,7 +92,7 @@ pub fn open(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let saved = saved_bounds(app);
     // Created hidden, placed, then shown, so it never flashes in the wrong spot.
     let w = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
-        .title("Nora Schedule")
+        .title("Niagara Scheduler")
         .decorations(false)
         .skip_taskbar(true)
         .always_on_top(on_top(app))
@@ -225,7 +225,7 @@ pub fn on_window_event(window: &tauri::Window, event: &WindowEvent) {
         // Settings removes it with `destroy`, which does not ask.
         (LABEL, WindowEvent::CloseRequested { api, .. }) => api.prevent_close(),
         // While the panel is open, closing the main window only hides it, so the panel
-        // keeps working and "Open Nora" can bring the same window back.
+        // keeps working and "Open Niagara" can bring the same window back.
         ("main", WindowEvent::CloseRequested { api, .. }) if self::window(app).is_some() => {
             api.prevent_close();
             let _ = window.hide();

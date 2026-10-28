@@ -208,7 +208,7 @@ fn run(db_path: PathBuf, shared: Arc<TrackerShared>) {
             win.app_name.trim().to_owned()
         };
         let title: String = win.title.trim().chars().take(MAX_TITLE_LEN).collect();
-        // Nora itself is focused whenever the tracked list is edited, so never suggest it.
+        // The app itself is focused whenever the tracked list is edited, so never suggest it.
         if own_exe.as_deref() != Some(win.process_path.as_path()) {
             shared.note_recent(&app);
         }

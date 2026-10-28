@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Pencil, Sticker, BookOpen,
+    AppWindow, CalendarPlus, Check, ChevronDown, Database, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Pencil, Sticker, BookOpen,
     CalendarDays, PanelRight, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
   } from '@lucide/svelte';
   import { calPrefs, setCalPrefs } from '../lib/calPrefs.svelte';
@@ -11,13 +11,13 @@
   import Modal from '../components/Modal.svelte';
   import PageToggles from '../components/PageToggles.svelte';
   import { openGuide } from '../lib/guide.svelte';
-  import { api, type BackupManifest, type StorageInfo } from '../lib/api';
+  import { api, type BackupManifest, type IcsPreview, type StorageInfo } from '../lib/api';
   import { folderName, MEMO_DIR_KEY, READ_DIRS_KEY, readDirsFrom } from '../lib/obsidian';
   import { setDecorating, stickers } from '../lib/stickers.svelte';
   import { backupError, exportBackup, pickBackup } from '../lib/backup';
   import { fmtTs } from '../lib/dates';
   import { i18n, setLocale, t, type Locale } from '../lib/i18n.svelte';
-  import { ACCENTS, setAccent, setCustomTheme, setTheme, toast, ui, type PresetAccent, type ThemePref } from '../lib/state.svelte';
+  import { ACCENTS, mutate, setAccent, setCustomTheme, setTheme, toast, ui, type PresetAccent, type ThemePref } from '../lib/state.svelte';
   import { fromHex, hex } from '../lib/colors';
   import { DEFAULT_CUSTOM_THEME, TINT_LEVELS } from '../lib/customTheme';
   import {
@@ -25,7 +25,7 @@
     type WindowSize,
   } from '../lib/window.svelte';
   import { shortcut } from '../lib/clipboard.svelte';
-  import { movePage, orderedPages, pagePrefs, resetPages, setPageVisible, visiblePages } from '../lib/pages.svelte';
+  import { resetPages } from '../lib/pages.svelte';
 
   const LANGUAGES: { id: Locale; name: string; sample: string; badge: string }[] = [
     { id: 'ko', name: '한국어', sample: '안녕하세요! 오늘 일정을 확인해 볼까요?', badge: '가' },
@@ -134,13 +134,31 @@
 
   const run = (p: Promise<unknown>) => p.catch((e) => toast(String(e), 'error'));
 
-  // ---- pages: drag a row (or use the arrows) to reorder
-  let dragFrom = $state<number | null>(null);
-  let dragOver = $state<number | null>(null);
+  // ---- calendar import (.ics or Google Calendar's .zip export), see src-tauri/src/ics.rs
+  let calImport = $state<{ path: string; preview: IcsPreview } | null>(null);
+  let calPast = $state(false);
+  let calBusy = $state(false);
 
-  function dropPage(to: number) {
-    if (dragFrom !== null) movePage(dragFrom, to);
-    dragFrom = dragOver = null;
+  async function pickCalendar() {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const path = await open({ multiple: false, directory: false, filters: [{ name: t('ics.fileType'), extensions: ['ics', 'zip'] }] });
+      if (typeof path !== 'string') return;
+      calPast = false;
+      calImport = { path, preview: await api.icsPreview(path) };
+    } catch (e) {
+      toast(t('ics.readFailed', { error: String(e) }), 'error');
+    }
+  }
+
+  async function confirmCalendar() {
+    if (!calImport) return;
+    calBusy = true;
+    const r = await mutate(api.icsImport(calImport.path, calPast));
+    calBusy = false;
+    if (!r) return;
+    calImport = null;
+    toast(t('ics.done', { added: r.added, updated: r.updated }), 'success');
   }
 
   // ---- backup / restore / reset
@@ -415,43 +433,8 @@
         <span class="spacer"></span>
         <button class="btn small ghost" onclick={resetPages}><RotateCcw size={14} /> {t('set.pagesReset')}</button>
       </div>
-      <PageToggles />
-      <details class="order">
-        <summary>{t('set.pagesOrder')}</summary>
-      <div class="page-list" role="list">
-        {#each orderedPages() as page, i (page.id)}
-          {@const shown = !pagePrefs.hidden.includes(page.id)}
-          <div
-            class="page-row"
-            class:off={!shown}
-            class:dragging={dragFrom === i}
-            class:drop-target={dragOver === i && dragFrom !== i}
-            draggable="true"
-            ondragstart={(e) => { dragFrom = i; e.dataTransfer?.setData('text/plain', page.id); }}
-            ondragover={(e) => { e.preventDefault(); dragOver = i; }}
-            ondrop={(e) => { e.preventDefault(); dropPage(i); }}
-            ondragend={() => (dragFrom = dragOver = null)}
-            role="listitem"
-          >
-            <span class="grip"><GripVertical size={16} /></span>
-            <span class="page-icon"><page.icon size={17} /></span>
-            <span class="page-name">{t(page.label)}</span>
-            {#if !shown}<span class="faint small">{t('set.pageHidden')}</span>{/if}
-            <span class="spacer"></span>
-            <button class="icon-btn" onclick={() => movePage(i, i - 1)} disabled={i === 0} aria-label={t('set.pageUp')} title={t('set.pageUp')}><ArrowUp size={15} /></button>
-            <button class="icon-btn" onclick={() => movePage(i, i + 1)} disabled={i === pagePrefs.order.length - 1} aria-label={t('set.pageDown')} title={t('set.pageDown')}><ArrowDown size={15} /></button>
-            <input
-              type="checkbox"
-              class="switch"
-              checked={shown}
-              disabled={shown && visiblePages().length <= 1}
-              onchange={(e) => setPageVisible(page.id, e.currentTarget.checked)}
-              aria-label={t('set.pageShow', { page: t(page.label) })}
-            />
-          </div>
-        {/each}
-      </div>
-      </details>
+      <PageToggles reorder />
+      <p class="faint small drag-hint">{t('set.pagesDrag')}</p>
     </section>
 
     <section class="card">
@@ -534,11 +517,11 @@
             <span class="muted small">{t('data.exportHint')}</span>
           </span>
         </button>
-        <button class="data-action" onclick={startImport}>
-          <span class="da-icon"><Upload size={20} /></span>
+        <button class="data-action" onclick={pickCalendar}>
+          <span class="da-icon"><CalendarPlus size={20} /></span>
           <span class="da-text">
-            <span class="strong">{t('data.import')}</span>
-            <span class="muted small">{t('data.importHint')}</span>
+            <span class="strong">{t('ics.import')}</span>
+            <span class="muted small">{t('ics.importHint')}</span>
           </span>
         </button>
       </div>
@@ -595,20 +578,6 @@
       </div>
     </section>
 
-    <section class="card danger-zone">
-      <div class="section-head">
-        <div class="icon danger-icon"><TriangleAlert size={18} /></div>
-        <div>
-          <h2>{t('data.danger')}</h2>
-          <p class="muted small">{t('data.resetHint')}</p>
-        </div>
-        <span class="spacer"></span>
-        <button class="btn danger-solid" onclick={() => { resetUnderstood = false; resetOpen = true; }}>
-          <Trash size={16} /> {t('data.reset')}
-        </button>
-      </div>
-    </section>
-
     <section class="card about">
       <div class="section-head">
         <div class="icon"><Info size={18} /></div>
@@ -619,8 +588,65 @@
       </div>
       <button class="btn guide-btn" onclick={openGuide}><BookOpen size={15} /> {t('guide.reopen')}</button>
     </section>
+
+    <details class="card danger-zone">
+      <summary class="section-head">
+        <div class="icon danger-icon"><TriangleAlert size={18} /></div>
+        <div>
+          <h2>{t('data.danger')}</h2>
+          <p class="muted small">{t('data.dangerHint')}</p>
+        </div>
+        <span class="spacer"></span>
+        <ChevronDown size={18} />
+      </summary>
+      <div class="danger-rows">
+        <div class="danger-row">
+          <div class="store-text">
+            <span class="strong small">{t('data.import')}</span>
+            <span class="muted small">{t('data.importHint')}</span>
+          </div>
+          <button class="btn" onclick={startImport}><Upload size={16} /> {t('data.importBtn')}</button>
+        </div>
+        <div class="danger-row">
+          <div class="store-text">
+            <span class="strong small">{t('data.reset')}</span>
+            <span class="muted small">{t('data.resetHint')}</span>
+          </div>
+          <button class="btn danger-solid" onclick={() => { resetUnderstood = false; resetOpen = true; }}>
+            <Trash size={16} /> {t('data.reset')}
+          </button>
+        </div>
+      </div>
+    </details>
   </div>
 </div>
+
+{#if calImport}
+  {@const p = calImport.preview}
+  <Modal title={t('ics.title')} onclose={() => !calBusy && (calImport = null)} width={480}>
+    {#if p.calendars.length}<p class="strong">{p.calendars.join(' · ')}</p>{/if}
+    <ul class="ics-counts small">
+      <li>{t('ics.total', { n: p.total }) + (p.repeating ? ` · ${t('ics.repeating', { n: p.repeating })}` : '')}</li>
+      {#if p.already}<li>{t('ics.already', { n: p.already })}</li>{/if}
+      {#if p.past}<li>{t('ics.past', { n: p.past })}</li>{/if}
+      {#if p.rules_dropped}<li class="warn">{t('ics.rulesDropped', { n: p.rules_dropped })}</li>{/if}
+    </ul>
+    {#if p.past}
+      <label class="ics-past">
+        <input type="checkbox" class="switch" bind:checked={calPast} />
+        <span class="small">{t('ics.includePast')}</span>
+      </label>
+    {/if}
+    <p class="faint small">{t('ics.note')}</p>
+    {#snippet footer()}
+      <span class="spacer"></span>
+      <button class="btn ghost" onclick={() => (calImport = null)} disabled={calBusy}>{t('common.cancel')}</button>
+      <button class="btn primary" onclick={confirmCalendar} disabled={calBusy || p.total === 0 || (!calPast && p.total === p.past)}>
+        <CalendarPlus size={15} /> {t('ics.confirm', { n: calPast ? p.total : p.total - p.past })}
+      </button>
+    {/snippet}
+  </Modal>
+{/if}
 
 {#if importing}
   <Modal title={t('data.importTitle')} onclose={() => !restarting && (importing = null)} width={480}>
@@ -1011,58 +1037,25 @@
   .sub-label {
     margin: 4px 0 8px;
   }
-  .order {
-    margin-top: 12px;
-  }
-  .order summary {
-    cursor: pointer;
-    color: var(--muted);
-    font-size: 13px;
-    font-weight: 600;
-    padding: 4px 0;
-  }
-  .order[open] summary {
-    margin-bottom: 8px;
-  }
-  .page-list {
+  .ics-counts {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    margin: 6px 0 12px;
+    padding-left: 18px;
   }
-  .page-row {
+  .ics-counts .warn {
+    color: var(--danger);
+  }
+  .ics-past {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 10px;
-    border: 1.5px solid transparent;
-    border-radius: var(--radius-sm);
-    background: var(--surface-2);
-    cursor: grab;
-    transition: opacity 0.15s, border-color 0.15s;
+    margin-bottom: 10px;
+    cursor: pointer;
   }
-  .page-row.off .page-icon,
-  .page-row.off .page-name {
-    opacity: 0.45;
-  }
-  .page-row.dragging {
-    opacity: 0.4;
-  }
-  .page-row.drop-target {
-    border-color: var(--primary);
-  }
-  .grip {
-    display: grid;
-    color: var(--faint);
-  }
-  .page-icon {
-    display: grid;
-    color: var(--primary);
-  }
-  .page-name {
-    font-weight: 650;
-  }
-  .page-row .switch {
-    margin-left: 6px;
+  .drag-hint {
+    margin: 10px 0 0;
   }
   .zooms {
     display: grid;
@@ -1252,9 +1245,39 @@
   .danger-zone {
     border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
   }
-  .danger-zone .section-head {
+  .danger-zone > summary {
     margin-bottom: 0;
+    list-style: none;
+    cursor: pointer;
+  }
+  .danger-zone > summary::-webkit-details-marker {
+    display: none;
+  }
+  .danger-zone > summary > :global(svg) {
+    color: var(--faint);
+    transition: transform 0.15s;
+  }
+  .danger-zone[open] > summary > :global(svg) {
+    transform: rotate(180deg);
+  }
+  .danger-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .danger-row {
+    display: flex;
+    align-items: center;
     flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
+    border-radius: var(--radius);
+  }
+  .danger-row .store-text {
+    flex: 1;
+    min-width: 200px;
   }
   .danger-icon {
     color: var(--danger);

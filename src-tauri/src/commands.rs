@@ -458,6 +458,26 @@ fn write_memo_note(state: &State<AppState>, id: i64) -> CmdResult<String> {
     )
 }
 
+/// Reads a calendar file (.ics, or Google Calendar's .zip export) and tells what importing it would do.
+#[tauri::command]
+pub async fn ics_preview(state: State<'_, AppState>, path: String) -> CmdResult<crate::db::IcsPreview> {
+    let (events, calendars) =
+        tauri::async_runtime::spawn_blocking(move || crate::ics::read_file(std::path::Path::new(&path))).await.map_err(|e| e.to_string())??;
+    let today = chrono::Local::now().date_naive();
+    let mut preview = with_db(&state, |db| db.ics_preview(&events, today))?;
+    preview.calendars = calendars;
+    Ok(preview)
+}
+
+/// Imports the events of a calendar file (see `Db::ics_import`).
+#[tauri::command]
+pub async fn ics_import(state: State<'_, AppState>, path: String, include_past: bool) -> CmdResult<crate::db::IcsReport> {
+    let (events, _) =
+        tauri::async_runtime::spawn_blocking(move || crate::ics::read_file(std::path::Path::new(&path))).await.map_err(|e| e.to_string())??;
+    let today = chrono::Local::now().date_naive();
+    with_db(&state, |db| db.ics_import(&events, include_past, today))
+}
+
 /// Saves a note's text (see `obsidian::write`); returns the new modified time.
 #[tauri::command]
 pub fn note_write(state: State<AppState>, root: String, path: String, text: String, expected_modified: Option<i64>) -> CmdResult<i64> {

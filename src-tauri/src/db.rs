@@ -228,6 +228,13 @@ CREATE TABLE IF NOT EXISTS cloze_stats (
     updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_cloze_source ON cloze_stats(source);
+
+-- Events imported from .ics files: the file's UID (plus `@date` for a moved occurrence),
+-- so importing the same calendar again updates them instead of adding copies.
+CREATE TABLE IF NOT EXISTS ics_imports (
+    uid      TEXT PRIMARY KEY,
+    event_id INTEGER NOT NULL
+);
 "#;
 
 pub fn now_ts() -> i64 {
@@ -285,6 +292,31 @@ pub struct Event {
     /// Remind this many minutes before the start; `None` for no reminder.
     #[serde(default)]
     pub reminder: Option<i64>,
+}
+
+/// What an .ics import would do (see `Db::ics_preview`).
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct IcsPreview {
+    pub total: usize,
+    pub repeating: usize,
+    /// Ended before today (skipped unless past events are included).
+    pub past: usize,
+    /// Imported before; importing again updates them.
+    pub already: usize,
+    /// Repeat rules Niagara cannot repeat exactly (only the first occurrence is kept).
+    pub rules_dropped: usize,
+    #[serde(default)]
+    pub calendars: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+pub struct IcsReport {
+    pub added: usize,
+    pub updated: usize,
+    pub past_skipped: usize,
+    pub rules_dropped: usize,
+    /// Imported before but deleted in Niagara since; not brought back.
+    pub deleted_kept: usize,
 }
 
 /// A user-defined label for events, optionally grouped under a category.
@@ -775,6 +807,114 @@ impl Db {
         }
     }
 
+    // ---- calendar import (.ics, see ics.rs) --------------------------------------------------
+
+    fn ics_key(e: &crate::ics::IcsEvent) -> String {
+        match e.recurrence_id {
+            Some(d) => format!("{}@{d}", e.uid),
+            None => e.uid.clone(),
+        }
+    }
+
+    /// The event an earlier import created for this key, if it still exists.
+    fn ics_existing(&self, key: &str) -> DbResult<Option<Event>> {
+        let id: Option<i64> =
+            self.conn.query_row("SELECT event_id FROM ics_imports WHERE uid=?1", [key], |r| r.get(0)).optional()?;
+        match id {
+            Some(id) => self.event(id),
+            None => Ok(None),
+        }
+    }
+
+    /// Whether an event (or its whole series) ended before `today`.
+    fn ics_is_past(e: &crate::ics::IcsEvent, today: NaiveDate) -> bool {
+        match &e.repeat {
+            Some(rule) => recurrence::occurrences(e.start.date(), rule, today, today + Duration::days(3660)).is_empty(),
+            None => e.end.date() < today,
+        }
+    }
+
+    /// What importing these events would do, without changing anything.
+    pub fn ics_preview(&self, events: &[crate::ics::IcsEvent], today: NaiveDate) -> DbResult<IcsPreview> {
+        let mut p = IcsPreview::default();
+        for e in events {
+            p.total += 1;
+            p.repeating += usize::from(e.repeat.is_some());
+            p.past += usize::from(Self::ics_is_past(e, today));
+            p.already += usize::from(self.ics_existing(&Self::ics_key(e))?.is_some());
+            p.rules_dropped += usize::from(e.rule_dropped);
+        }
+        Ok(p)
+    }
+
+    /// Adds the events, or updates the ones an earlier import of the same calendar created
+    /// (their color, tags and reminder stay as set in Niagara). Past events are skipped unless asked.
+    pub fn ics_import(&self, events: &[crate::ics::IcsEvent], include_past: bool, today: NaiveDate) -> DbResult<IcsReport> {
+        const IMPORT_COLOR: u32 = 0x4aa8ff;
+        let mut report = IcsReport::default();
+        let tx = self.conn.unchecked_transaction()?;
+        // Series first, so moved occurrences can be taken out of them.
+        let mut ordered: Vec<&crate::ics::IcsEvent> = events.iter().collect();
+        ordered.sort_by_key(|e| e.recurrence_id.is_some());
+        for e in ordered {
+            if !include_past && Self::ics_is_past(e, today) {
+                report.past_skipped += 1;
+                continue;
+            }
+            if let Some(day) = e.recurrence_id
+                && let Some(series) = self.ics_existing(&e.uid)?
+                && series.repeat.is_some()
+            {
+                self.add_exdate(&series, day)?;
+            }
+            let key = Self::ics_key(e);
+            let existing = self.ics_existing(&key)?;
+            // Imported before and deleted in Niagara since: leave it deleted.
+            if existing.is_none() && self.conn.query_row("SELECT 1 FROM ics_imports WHERE uid=?1", [&key], |_| Ok(())).optional()?.is_some() {
+                report.deleted_kept += 1;
+                continue;
+            }
+            let event = Event {
+                id: existing.as_ref().map_or(0, |x| x.id),
+                title: e.title.clone(),
+                start: e.start,
+                end: e.end,
+                all_day: e.all_day,
+                color: existing.as_ref().map_or(IMPORT_COLOR, |x| x.color),
+                location: e.location.clone(),
+                links: e.url.iter().cloned().collect(),
+                memo: e.memo.clone(),
+                repeat: if e.recurrence_id.is_some() { None } else { e.repeat.clone() },
+                exdates: e.exdates.clone(),
+                occurrence: None,
+                cancelled: e.cancelled,
+                tags: existing.as_ref().map_or_else(Vec::new, |x| x.tags.clone()),
+                reminder: existing.as_ref().and_then(|x| x.reminder),
+            };
+            match existing {
+                Some(_) => {
+                    // Keep dates removed in Niagara ("delete just this one") as well as the file's.
+                    let mut exdates = event.exdates.clone();
+                    if let Some(old) = self.event(event.id)? {
+                        exdates.extend(old.exdates);
+                    }
+                    exdates.sort_unstable();
+                    exdates.dedup();
+                    self.update_event_row(&Event { exdates, ..event })?;
+                    report.updated += 1;
+                }
+                None => {
+                    let id = self.insert_event(&event)?;
+                    self.conn.execute("INSERT OR REPLACE INTO ics_imports(uid, event_id) VALUES(?1, ?2)", params![key, id])?;
+                    report.added += 1;
+                }
+            }
+            report.rules_dropped += usize::from(e.rule_dropped);
+        }
+        tx.commit()?;
+        Ok(report)
+    }
+
     fn add_exdate(&self, series: &Event, day: NaiveDate) -> DbResult<()> {
         let mut exdates = series.exdates.clone();
         if !exdates.contains(&day) {
@@ -1222,6 +1362,29 @@ pub(crate) mod tests {
         let path = std::env::temp_dir().join(format!("nora_test_{}_{n}.sqlite3", std::process::id()));
         let _ = std::fs::remove_file(&path);
         (Db::open(&path).unwrap(), path)
+    }
+
+    #[test]
+    fn ics_import_adds_then_updates_and_skips_past() {
+        let (db, path) = temp_db();
+        let ics = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:x1\nDTSTART:20261030T090000\nDTEND:20261030T100000\nSUMMARY:스터디\nRRULE:FREQ=WEEKLY\nEND:VEVENT\nBEGIN:VEVENT\nUID:x1\nRECURRENCE-ID:20261106T090000\nDTSTART:20261106T140000\nDTEND:20261106T150000\nSUMMARY:스터디 (옮김)\nEND:VEVENT\nBEGIN:VEVENT\nUID:old\nDTSTART;VALUE=DATE:20250101\nSUMMARY:지난 일\nEND:VEVENT\nEND:VCALENDAR";
+        let events = crate::ics::parse(ics);
+        let today = d("2026-10-28");
+        let p = db.ics_preview(&events, today).unwrap();
+        assert_eq!((p.total, p.repeating, p.past, p.already), (3, 1, 1, 0));
+        let r = db.ics_import(&events, false, today).unwrap();
+        assert_eq!((r.added, r.updated, r.past_skipped), (2, 0, 1));
+        let series = db.ics_existing("x1").unwrap().unwrap();
+        assert_eq!(series.exdates, vec![d("2026-11-06")]);
+        // Same file again: nothing new, both updated.
+        let r = db.ics_import(&events, false, today).unwrap();
+        assert_eq!((r.added, r.updated), (0, 2));
+        assert_eq!(db.ics_preview(&events, today).unwrap().already, 2);
+        // Deleted in Niagara: a later import leaves it out.
+        db.conn.execute("DELETE FROM events WHERE id=?1", [series.id]).unwrap();
+        let r = db.ics_import(&events, false, today).unwrap();
+        assert_eq!((r.added, r.deleted_kept), (0, 1));
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]

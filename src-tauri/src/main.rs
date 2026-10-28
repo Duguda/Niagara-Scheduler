@@ -10,6 +10,7 @@ mod db;
 mod diary;
 mod expenses;
 mod health;
+mod ics;
 mod images;
 mod obsidian;
 mod panel;
@@ -122,6 +123,8 @@ fn main() {
             commands::obsidian_notes,
             commands::obsidian_read,
             commands::note_file_path,
+            commands::ics_preview,
+            commands::ics_import,
             commands::note_write,
             commands::note_create,
             commands::note_convert,

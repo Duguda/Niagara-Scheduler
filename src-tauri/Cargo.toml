@@ -1,6 +1,6 @@
 [package]
 name = "niagara-scheduler"
-version = "0.12.0"
+version = "0.13.0"
 description = "A light desktop schedule manager"
 edition = "2024"
 

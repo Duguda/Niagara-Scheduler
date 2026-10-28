@@ -450,7 +450,9 @@ export function installMock() {
       }
       case 'delete_book': { const i = books.findIndex((b) => b.id === a.id); return i < 0 ? null : books.splice(i, 1)[0]; }
       case 'plugin:dialog|save': return '/Users/you/Documents/Niagara-backup.nia';
-      case 'plugin:dialog|open': return '/Users/you/Documents/Nora-backup.nora';
+      case 'plugin:dialog|open': return JSON.stringify(a).includes('ics') ? '/Users/you/Downloads/google-calendar.zip' : '/Users/you/Documents/Niagara-backup.nia';
+      case 'ics_preview': return { total: 128, repeating: 9, past: 97, already: 0, rules_dropped: 2, calendars: ['개인', 'ROTC'] };
+      case 'ics_import': return { added: a.includePast ? 128 : 31, updated: 0, past_skipped: a.includePast ? 0 : 97, rules_dropped: 2, deleted_kept: 0 };
       case 'export_data':
       case 'inspect_backup':
         return { format: 1, app_version: '0.1.0', exported_at: now - 86_400 * 3,

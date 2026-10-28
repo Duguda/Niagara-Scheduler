@@ -287,6 +287,24 @@ export interface StorageInfo {
   portable: boolean;
 }
 
+/** What importing a calendar file would do (see src-tauri/src/ics.rs). */
+export interface IcsPreview {
+  total: number;
+  repeating: number;
+  past: number;
+  already: number;
+  rules_dropped: number;
+  calendars: string[];
+}
+
+export interface IcsReport {
+  added: number;
+  updated: number;
+  past_skipped: number;
+  rules_dropped: number;
+  deleted_kept: number;
+}
+
 /** A .md or .txt note in a note folder (see src-tauri/src/obsidian.rs). */
 export interface NoteMeta {
   /** The note folder (its path) the note was found in. */
@@ -445,6 +463,8 @@ export const api = {
 
   obsidianNotes: () => invoke<NoteMeta[]>('obsidian_notes'),
   obsidianRead: (path: string, root: string) => invoke<string>('obsidian_read', { path, root }),
+  icsPreview: (path: string) => invoke<IcsPreview>('ics_preview', { path }),
+  icsImport: (path: string, includePast: boolean) => invoke<IcsReport>('ics_import', { path, includePast }),
   noteFilePath: (path: string, root: string) => invoke<string>('note_file_path', { path, root }),
   noteWrite: (root: string, path: string, text: string, expectedModified: number | null) =>
     invoke<number>('note_write', { root, path, text, expectedModified }),

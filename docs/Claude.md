@@ -54,6 +54,7 @@ docs/                이 문서들
 - 환경변수 `NORA_DATA_DIR`: 데이터 폴더를 직접 지정 (개발용, brief는 그 아래 `brief\`)
 
 ## 현재 상태
+- 자동 업데이트 실제 동작 확인 (v0.14.0 → v0.15.0, 2026-10-29)
 - v0.15.0: 구글 캘린더 iCal 비공개 주소 구독(30분마다, 한 방향, calsub.rs), 캘린더 페이지·시작 안내에서 연결, 노트 폴더 트리 선
 - v0.14.0: 자동 업데이트 (GitHub 최신 릴리스의 latest.json, 서명 확인). 서명 키는 사용자 PC(`%USERPROFILE%\.tauri\niagara.key`)와 GitHub 시크릿 `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)`에만 있음. 공개 키는 tauri.conf.json
 - v0.13.1: 알파 피드백 수정 (패널 구석, n회독 가리기, 마치기, 약점 표시, 노트 삭제·하위 폴더·바깥 변경 감지, 뽀모도로 길게 누르기·추천 개수·위젯 버튼)
@@ -67,7 +68,7 @@ docs/                이 문서들
 - v0.6.x: 옵시디언 노트 페이지, 메모 → 옵시디언 보내기, 모닝 브리프 파일, Windows 자동 빌드
 - 검증: `npm run check` 오류 0, `npm run build` 통과, `cargo test` 63개 통과, 브라우저 미리보기(Playwright)로 화면·뒤로 가기·링크 확인
 - Windows CI 빌드: main push마다 아티팩트(zip), `v*` 태그 push 시 GitHub Release에 setup.exe 공개 (로그인 불필요). 첫 릴리스 v0.11.0. 실제 PC 확인은 아직
-- 알파 테스트 화면: 예시 데이터 미리보기를 claude.ai 아티팩트로 공개(비공개 링크). `npm run preview:build` 결과를 올림
+- 알파 테스트 화면: 예시 데이터 미리보기 아티팩트(비공개 링크). v0.15.0까지 갱신하고 **중단** — 자동 업데이트가 확인돼서 이제 실제 설치본으로 테스트 (사용자 결정). `npm run preview:build`는 개발 확인용으로만
 - GitHub: Duguda/Niagara-Scheduler main에 push (리모트 `origin`, 원작은 `upstream`)
 - 공개 레포라 커밋 작성자는 `Duguda <74199426+Duguda@users.noreply.github.com>`만 사용. 실명·개인 이메일을 레포에 넣지 않는다
 
@@ -117,6 +118,7 @@ docs/                이 문서들
 | 2026-10-29 | 자동 업데이트를 tauri-plugin-updater + GitHub Releases latest.json으로 | 채택 | 따로 서버 없이 릴리스만으로 동작. 서명 키는 사용자가 PC에서 만들고 시크릿에 등록 (개인 키는 Claude를 거치지 않음) |
 | 2026-10-29 | 구글 캘린더 연동은 iCal 비공개 주소 구독(한 방향) | 채택 | 로그인·앱 등록 없음. OAuth는 미심사 앱 토큰이 7일마다 만료돼 개인용으로 불편 (사용자 동의) |
 | 2026-10-29 | 캘린더 가져오기·연결은 설정이 아니라 캘린더 페이지와 시작 안내에 | 채택 | 쓰는 곳에서 찾게 (사용자) |
+| 2026-10-29 | 알파 미리보기 아티팩트 갱신 중단 | 채택 | 자동 업데이트로 설치본 테스트가 쉬워짐. 예시 데이터 화면과 헷갈리는 문제도 없앰 (사용자) |
 | 2026-10-28 | 목록을 열거 문제로 바꾸기 | 보류 | n회독 먼저 써보고 결정 |
 | 2026-10-28 | 공유되던 번역 키 `trpg.year/noMatch/playUnit` → `common.year/noMatch/timesUnit` | 채택 | 일기·외주 화면이 계속 사용 |
 

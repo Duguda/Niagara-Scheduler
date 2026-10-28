@@ -490,6 +490,12 @@ pub fn note_create(state: State<AppState>, root: String, folder: String, title: 
     crate::obsidian::create(&note_root(&state, &root)?, &folder, &title)
 }
 
+/// Moves a note to the recycle bin.
+#[tauri::command]
+pub fn note_delete(state: State<AppState>, root: String, path: String) -> CmdResult<()> {
+    crate::obsidian::delete(&note_root(&state, &root)?, &path)
+}
+
 /// Switches a note between `.txt` and `.md`; returns its new path.
 #[tauri::command]
 pub fn note_convert(state: State<AppState>, root: String, path: String) -> CmdResult<String> {

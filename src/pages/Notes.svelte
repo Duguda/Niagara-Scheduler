@@ -5,6 +5,7 @@
   import { open as pickFolder } from '@tauri-apps/plugin-dialog';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { ArrowLeft, Check, FileText, FolderOpen, NotebookText, Pencil, Plus, RefreshCw, Search, Settings2 } from '@lucide/svelte';
+  import ConfirmButton from '../components/ConfirmButton.svelte';
   import Modal from '../components/Modal.svelte';
   import Select from '../components/Select.svelte';
   import { api, type NoteMeta } from '../lib/api';
@@ -56,18 +57,30 @@
   let newSub = $state('');
   let newTitle = $state('');
 
-  const topFolder = (n: NoteMeta) => noteFolder(n).split('/')[0];
   const noteKey = (n: NoteMeta) => `${n.root}|${n.path}`;
-  const folders = $derived([...new Set(notes.map(topFolder))].sort((a, b) => a.localeCompare(b)));
+  /** Every folder and sub-folder that holds notes, as `Vault/10 Study/SQL`. */
+  const folders = $derived.by(() => {
+    const all = new Set<string>();
+    for (const n of notes) {
+      const parts = noteFolder(n).split('/').filter(Boolean);
+      for (let i = 1; i <= parts.length; i++) all.add(parts.slice(0, i).join('/'));
+    }
+    return [...all].sort((a, b) => a.localeCompare(b));
+  });
   const folderOptions = $derived([
     { value: '', label: t('ob.allFolders') },
-    ...folders.map((f) => ({ value: f || '/', label: f || t('ob.root') })),
+    ...folders.map((f) => ({ value: f, label: '\u2003'.repeat(f.split('/').length - 1) + f.split('/').pop() })),
   ]);
+  /** A note is in a folder when it sits there or in one of its sub-folders. */
+  const inFolder = (n: NoteMeta, f: string) => {
+    const nf = noteFolder(n);
+    return nf === f || nf.startsWith(`${f}/`);
+  };
   const dirOptions = $derived(dirs.map((d) => ({ value: d, label: folderName(d) })));
   const filtered = $derived.by(() => {
     const q = search.trim().toLowerCase();
     return notes.filter(
-      (n) => (!folder || (folder === '/' ? noteFolder(n) === '' : topFolder(n) === folder)) && (!q || n.path.toLowerCase().includes(q)),
+      (n) => (!folder || inFolder(n, folder)) && (!q || n.path.toLowerCase().includes(q)),
     );
   });
   const shown = $derived(filtered.slice(0, LIST_LIMIT));
@@ -143,7 +156,41 @@
       editing = false;
       show(n, body);
     } catch (e) {
+      // Deleted or moved outside Niagara since the list was read.
+      if (/not found|no such file|cannot find/i.test(String(e))) {
+        toast(t('ob.gone', { name: n.title }), 'info');
+        if (current && noteKey(current) === noteKey(n)) closeNote();
+        await refresh();
+      } else {
+        toast(String(e), 'error');
+      }
+    }
+  }
+
+  async function deleteNote() {
+    if (!current) return;
+    const n = current;
+    try {
+      await api.noteDelete(n.root, n.path);
+      toast(t('ob.deleted', { name: n.title }), 'success');
+      closeNote();
+      await refresh();
+    } catch (e) {
       toast(String(e), 'error');
+    }
+  }
+
+  /** Coming back to the window: pick up notes added, changed or deleted in other programs. */
+  async function onFocus() {
+    if (!dirs.length || loading || editing) return;
+    await refresh();
+    if (!current) return;
+    const fresh = notes.find((x) => current && noteKey(x) === noteKey(current));
+    if (!fresh) {
+      toast(t('ob.gone', { name: current.title }), 'info');
+      closeNote();
+    } else if (fresh.modified > (loadedAt ?? 0)) {
+      await openNote(fresh, 'back');
     }
   }
 
@@ -274,6 +321,8 @@
   }
 </script>
 
+<svelte:window onfocus={onFocus} />
+
 {#if !ready}
   <div></div>
 {:else if !dirs.length}
@@ -347,6 +396,7 @@
             <FileText size={15} /> {isPlainText(current.path) ? t('ob.toMarkdown') : t('ob.toText')}
           </button>
           <button class="icon-btn" onclick={showInFolder} title={t('ob.showInFolder')} aria-label={t('ob.showInFolder')}><FolderOpen size={17} /></button>
+          {#if !editing}<ConfirmButton onconfirm={deleteNote} question={t('ob.deleteQ')} />{/if}
           {#if editing}
             <button class="btn primary" onclick={finishEdit} disabled={saving}><Check size={15} /> {t('ob.view')}</button>
           {:else}

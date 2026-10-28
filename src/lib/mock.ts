@@ -242,6 +242,7 @@ export function installMock() {
         delete vaultNotes[a.path];
         return to;
       }
+      case 'note_delete': delete vaultNotes[a.path]; return null;
       case 'note_file_path': return `${VAULT}\\${a.path.replaceAll('/', '\\')}`;
       case 'export_memo_to_obsidian': return 'Niagara/' + (memos.find((m) => m.id === a.id)?.title ?? 'Untitled') + '.md';
       case 'cloze_sources':

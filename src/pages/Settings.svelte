@@ -60,8 +60,18 @@
     { id: 'bottom-right', label: () => t('panel.bottomRight') },
   ];
 
+  let corner = $state<Corner>('top-right');
+
   async function refreshPanel() {
     panel = await panelApi.status().catch(() => null);
+    const saved = await api.getSetting('panel.corner').catch(() => null);
+    if (saved && CORNERS.some((c) => c.id === saved)) corner = saved as Corner;
+  }
+
+  async function placePanel(c: Corner) {
+    corner = c;
+    await panelAction(panelApi.place(c));
+    if (!panel?.open) toast(t('panel.placeLater'), 'info');
   }
 
   async function panelAction(work: Promise<unknown>) {
@@ -388,7 +398,7 @@
           </span>
           <div class="segmented">
             {#each CORNERS as c (c.id)}
-              <button disabled={!panel.open} onclick={() => panelAction(panelApi.place(c.id))}>{c.label()}</button>
+              <button class:active={corner === c.id} aria-pressed={corner === c.id} onclick={() => placePanel(c.id)}>{c.label()}</button>
             {/each}
           </div>
         </div>

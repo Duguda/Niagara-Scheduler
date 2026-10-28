@@ -74,6 +74,13 @@ fn collapsed(app: &AppHandle) -> bool {
     setting(app, "panel.collapsed").is_some_and(|v| v == "true")
 }
 
+/// The corner last chosen in Settings (where the panel opens without a remembered spot).
+const CORNER_KEY: &str = "panel.corner";
+
+fn corner(app: &AppHandle) -> String {
+    setting(app, CORNER_KEY).filter(|c| !c.is_empty()).unwrap_or_else(|| "top-right".into())
+}
+
 fn saved_bounds(app: &AppHandle) -> Option<Bounds> {
     setting(app, "panel.bounds").and_then(|s| serde_json::from_str::<Bounds>(&s).ok())
 }
@@ -110,7 +117,7 @@ pub fn open(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             set_inner_size_checked(&w, PhysicalSize::new(b.w, b.h))?;
             w.set_position(Position::Physical(PhysicalPosition::new(b.x, b.y)))?;
         }
-        None => place(&w, "top-right")?,
+        None => place(&w, &corner(app))?,
     }
     if collapsed(app) {
         fold(&w, true)?;
@@ -309,9 +316,18 @@ pub fn panel_set_collapsed(app: AppHandle, collapsed: bool) -> Result<(), String
 /// `corner`: `top-left`, `top-right`, `bottom-left` or `bottom-right`.
 #[tauri::command]
 pub fn panel_place(app: AppHandle, corner: String) -> Result<(), String> {
+    let corner = match corner.as_str() {
+        "top-left" | "top-right" | "bottom-left" | "bottom-right" => corner,
+        _ => return Err("unknown corner".into()),
+    };
+    set_setting(&app, CORNER_KEY, &corner);
     match window(&app) {
         Some(w) => place(&w, &corner).map_err(|e| e.to_string()),
-        None => Ok(()),
+        // Closed: forget the old spot so the panel opens in this corner next time.
+        None => {
+            set_setting(&app, "panel.bounds", "");
+            Ok(())
+        }
     }
 }
 

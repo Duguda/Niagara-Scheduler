@@ -469,6 +469,7 @@ export const api = {
   noteWrite: (root: string, path: string, text: string, expectedModified: number | null) =>
     invoke<number>('note_write', { root, path, text, expectedModified }),
   noteCreate: (root: string, folder: string, title: string) => invoke<string>('note_create', { root, folder, title }),
+  noteDelete: (root: string, path: string) => invoke<void>('note_delete', { root, path }),
   noteConvert: (root: string, path: string) => invoke<string>('note_convert', { root, path }),
   exportMemoToObsidian: (id: number) => invoke<string>('export_memo_to_obsidian', { id }),
   refreshBrief: () => invoke<string>('refresh_brief'),

@@ -14,7 +14,7 @@ export const PHASES: Record<Phase, { name: () => string; color: string }> = {
   long: { name: () => t('pomo.long'), color: 'var(--long-break)' },
 };
 
-const SETTINGS = ['focusMin', 'shortMin', 'longMin', 'longEvery', 'autoStart', 'sound'] as const;
+const SETTINGS = ['focusMin', 'shortMin', 'longMin', 'longEvery', 'autoStart', 'sound', 'suggest'] as const;
 
 /** Focus shorter than this is not saved when stopped early (an accidental start). */
 const MIN_SAVED_SECS = 60;
@@ -38,6 +38,8 @@ class Pomodoro {
   autoStart = $state(false);
   /** Ring an alarm when a focus session or break ends. */
   sound = $state(true);
+  /** How many open to-dos the "what to focus on" box suggests (0–5). */
+  suggest = $state(3);
 
   phase = $state<Phase>('focus');
   label = $state('');
@@ -83,6 +85,7 @@ class Pomodoro {
       const v = await api.getSetting(`pomodoro.${key}`).catch(() => null);
       if (v === null) continue;
       if (key === 'autoStart' || key === 'sound') this[key] = v === 'true';
+      else if (key === 'suggest') this.suggest = Math.min(5, Math.max(0, Math.floor(Number(v)) || 0));
       else if (Number(v) > 0) this[key] = Number(v);
     }
     if (!this.started) this.pausedRemaining = this.phaseMs;

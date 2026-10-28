@@ -60,7 +60,9 @@
   let collapsed = $state<Record<string, boolean>>({});
   const blockShown = (b: number) => scope === '' || (scope === 'stack' ? b <= stage : b === scope);
   function isHidden(x: { key: string; word: boolean }): boolean {
-    if (hide === 'round' && mode === 'all') return hiddenInRound(x.key, round);
+    // n-reading hides by group regardless of the review mode (a note with blanks due today
+    // opened in 'due' mode used to hide nothing here).
+    if (hide === 'round') return hiddenInRound(x.key, round);
     return !x.word && hiddenIn(mode, stats[x.key], today);
   }
   const inScope = $derived(order.filter((x) => blockShown(x.block) && isHidden(x)).map((x) => x.key));
@@ -151,7 +153,6 @@
     el.tabIndex = 0;
     // 'concealed', not 'hidden': the app has a global .hidden helper.
     el.classList.add(st === 'hidden' ? 'concealed' : st);
-    if (isWeak(stats[key])) el.classList.add('weak-mark');
     el.setAttribute('aria-label', st === 'hidden' ? t('study.hiddenLabel') : (el.textContent ?? ''));
     if (st === 'open') {
       const judge = document.createElement('span');
@@ -239,6 +240,7 @@
       p = {};
     }
     hide = p.hide === 'round' ? 'round' : 'key';
+    if (hide === 'round') mode = 'all';
     counted = false;
     round = Math.max(1, Math.floor(p.round ?? 1));
     stage = Math.min(Math.max(0, Math.floor(p.stage ?? 0)), Math.max(0, blocks.length - 1));
@@ -329,9 +331,21 @@
     loadSources();
   }
 
+  /** "Finish": closes the note and refreshes the list (due and weak counts). */
   async function finishSource() {
+    current = null;
+    html = '';
+    states.clear();
     await loadSources();
-    if (current) current = sources.find((s) => s.source === current!.source) ?? current;
+  }
+
+  /** "Weak ones again": stays on the note, with only its weak blanks hidden. */
+  async function againWeak() {
+    const src = current;
+    await loadSources();
+    if (src) current = sources.find((s) => s.source === src.source) ?? src;
+    states.clear();
+    await setMode('weak');
   }
 
   const counts = $derived({
@@ -462,7 +476,7 @@
             <button class="btn small primary" onclick={() => nextRound()}><SkipForward size={14} /> {t('study.startRound', { n: round + 1 })}</button>
           {:else if hide === 'round'}
             <button class="btn small" onclick={hideAll}><RotateCcw size={14} /> {t('study.hideAll')}</button>
-          {:else if tally.wrong}<button class="btn small" onclick={() => { finishSource(); setMode('weak'); }}><RotateCcw size={14} /> {t('study.againWeak')}</button>{/if}
+          {:else if tally.wrong}<button class="btn small" onclick={againWeak}><RotateCcw size={14} /> {t('study.againWeak')}</button>{/if}
           <button class="btn small primary" onclick={finishSource}>{t('study.finish')}</button>
         </div>
       {/if}
@@ -765,9 +779,6 @@
   }
   .reading :global(.blank.concealed:hover) {
     background: color-mix(in srgb, var(--primary) 12%, var(--surface-2));
-  }
-  .reading :global(.blank.weak-mark.concealed) {
-    border-bottom-color: var(--danger, #e05252);
   }
   .reading :global(.blank.open) {
     color: var(--text);

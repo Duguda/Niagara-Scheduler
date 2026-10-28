@@ -15,7 +15,14 @@
     data.version;
     const start = dayStartTs(today());
     load(api.pomodoroSessions(start, start + 86_400), []).then((s) => (sessions = s));
-    load(api.todos(), []).then((t) => (openTodos = t.filter((x) => !x.done).map((x) => x.title)));
+    // Suggestions: open to-dos, the ones due soonest first.
+    load(api.todos(), []).then(
+      (t) =>
+        (openTodos = t
+          .filter((x) => !x.done)
+          .sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999'))
+          .map((x) => x.title)),
+    );
   });
 
   const R = 120;
@@ -25,16 +32,37 @@
   const finished = $derived(sessions.filter((s) => s.completed).length);
   const color = $derived(PHASES[pomodoro.phase].color);
 
-  const settings: { key: 'focusMin' | 'shortMin' | 'longMin' | 'longEvery'; label: Key; unit: Key; max: number }[] = [
-    { key: 'focusMin', label: 'pomo.focus', unit: 'pomo.min', max: 180 },
-    { key: 'shortMin', label: 'pomo.short', unit: 'pomo.min', max: 60 },
-    { key: 'longMin', label: 'pomo.long', unit: 'pomo.min', max: 90 },
-    { key: 'longEvery', label: 'pomo.longAfter', unit: 'pomo.sessions', max: 12 },
+  type StepKey = 'focusMin' | 'shortMin' | 'longMin' | 'longEvery' | 'suggest';
+  const settings: { key: StepKey; label: Key; unit: Key; min: number; max: number }[] = [
+    { key: 'focusMin', label: 'pomo.focus', unit: 'pomo.min', min: 1, max: 180 },
+    { key: 'shortMin', label: 'pomo.short', unit: 'pomo.min', min: 1, max: 60 },
+    { key: 'longMin', label: 'pomo.long', unit: 'pomo.min', min: 1, max: 90 },
+    { key: 'longEvery', label: 'pomo.longAfter', unit: 'pomo.sessions', min: 1, max: 12 },
+    { key: 'suggest', label: 'pomo.suggest', unit: 'pomo.items', min: 0, max: 5 },
   ];
+  const suggestions = $derived(openTodos.slice(0, pomodoro.suggest));
 
-  function nudge(key: (typeof settings)[number]['key'], delta: number, max: number) {
-    pomodoro[key] = Math.min(max, Math.max(1, pomodoro[key] + delta));
-    pomodoro.saveSettings();
+  function nudge(s: (typeof settings)[number], delta: number) {
+    pomodoro[s.key] = Math.min(s.max, Math.max(s.min, pomodoro[s.key] + delta));
+  }
+
+  // Holding − / + repeats, faster the longer it is held (and in steps of 5 for long ranges).
+  let holdTimer: ReturnType<typeof setTimeout> | null = null;
+  function startHold(s: (typeof settings)[number], dir: 1 | -1) {
+    stopHold(false);
+    nudge(s, dir);
+    let n = 0;
+    const tickHold = () => {
+      n++;
+      nudge(s, dir * (n > 12 && s.max >= 60 ? 5 : 1));
+      holdTimer = setTimeout(tickHold, Math.max(40, 220 * Math.pow(0.85, n)));
+    };
+    holdTimer = setTimeout(tickHold, 400);
+  }
+  function stopHold(save = true) {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = null;
+    if (save) pomodoro.saveSettings();
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -92,7 +120,7 @@
 
       <input class="input focus-input" list="todo-titles" placeholder={t('pomo.focusPlaceholder')} bind:value={pomodoro.label} />
       <datalist id="todo-titles">
-        {#each openTodos as t, i (i)}<option value={t}></option>{/each}
+        {#each suggestions as t, i (i)}<option value={t}></option>{/each}
       </datalist>
       <p class="faint small">
         {t('pomo.hintKey', { key: 'Space' })} · {t('pomo.hintSession', { n: (pomodoro.completed % pomodoro.longEvery) + 1, total: pomodoro.longEvery })}
@@ -118,9 +146,21 @@
             <div class="setting">
               <span>{t(s.label)}</span>
               <div class="stepper">
-                <button onclick={() => nudge(s.key, -1, s.max)} aria-label={t('pomo.decrease')}>−</button>
+                <button
+                  onpointerdown={(e) => { e.preventDefault(); startHold(s, -1); }}
+                  onpointerup={() => stopHold()}
+                  onpointerleave={() => holdTimer && stopHold()}
+                  onpointercancel={() => stopHold()}
+                  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nudge(s, -1); pomodoro.saveSettings(); } }}
+                  aria-label={t('pomo.decrease')}>−</button>
                 <span class="tabular">{pomodoro[s.key]} <span class="faint small">{t(s.unit)}</span></span>
-                <button onclick={() => nudge(s.key, 1, s.max)} aria-label={t('pomo.increase')}>+</button>
+                <button
+                  onpointerdown={(e) => { e.preventDefault(); startHold(s, 1); }}
+                  onpointerup={() => stopHold()}
+                  onpointerleave={() => holdTimer && stopHold()}
+                  onpointercancel={() => stopHold()}
+                  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nudge(s, 1); pomodoro.saveSettings(); } }}
+                  aria-label={t('pomo.increase')}>+</button>
               </div>
             </div>
           {/each}

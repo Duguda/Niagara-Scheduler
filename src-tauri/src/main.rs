@@ -128,6 +128,7 @@ fn main() {
             commands::note_write,
             commands::note_create,
             commands::note_convert,
+            commands::note_delete,
             commands::export_memo_to_obsidian,
             commands::refresh_brief,
             commands::storage_info,

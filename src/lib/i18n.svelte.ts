@@ -509,7 +509,7 @@ const en = {
   'panel.show': 'Show the panel',
   'panel.showBody': 'It also opens whenever Niagara starts, and is turned off only here. Drag its top bar to move it; drag an edge to resize.',
   'panel.position': 'Snap to a corner',
-  'panel.positionBody': 'The panel remembers where you leave it.',
+  'panel.positionBody': 'Opens in the chosen corner. If you move it, it remembers that spot.',
   'panel.topLeft': 'Top left',
   'panel.topRight': 'Top right',
   'panel.bottomLeft': 'Bottom left',
@@ -1199,6 +1199,12 @@ const en = {
   'ics.confirm': 'Import {n}',
   'ics.done': 'Calendar imported: {added} added, {updated} updated',
   'ics.readFailed': 'Couldn\'t read the calendar file: {error}',
+  'pomo.suggest': 'To-dos suggested',
+  'pomo.items': 'items',
+  'panel.placeLater': 'The panel will open in this corner.',
+  'ob.gone': '“{name}” is no longer in the folder (deleted or moved elsewhere).',
+  'ob.deleted': 'Moved “{name}” to the recycle bin',
+  'ob.deleteQ': 'Move this note to the recycle bin?',
 };
 
 export type Key = keyof typeof en;
@@ -1706,7 +1712,7 @@ const ko: Record<Key, string> = {
   'panel.show': '패널 표시',
   'panel.showBody': '켜 두면 Niagara를 실행할 때마다 함께 열리고, 끌 때는 여기에서만 끌 수 있어요. 위쪽 막대를 끌어 옮기고, 가장자리를 끌어 크기를 바꿔요.',
   'panel.position': '구석으로 보내기',
-  'panel.positionBody': '옮겨 둔 위치는 다음에 열 때도 그대로예요.',
+  'panel.positionBody': '고른 구석에서 열려요. 직접 옮기면 그 자리를 기억해요.',
   'panel.topLeft': '왼쪽 위',
   'panel.topRight': '오른쪽 위',
   'panel.bottomLeft': '왼쪽 아래',
@@ -2396,6 +2402,12 @@ const ko: Record<Key, string> = {
   'ics.confirm': '{n}개 가져오기',
   'ics.done': '일정을 가져왔어요: 새로 {added}개, 갱신 {updated}개',
   'ics.readFailed': '캘린더 파일을 읽지 못했어요: {error}',
+  'pomo.suggest': '추천 할 일 개수',
+  'pomo.items': '개',
+  'panel.placeLater': '패널을 켜면 이 위치에 나타나요.',
+  'ob.gone': '“{name}” 노트가 폴더에 없어요 (다른 곳에서 지웠거나 옮겼어요).',
+  'ob.deleted': '“{name}”을(를) 휴지통으로 옮겼어요',
+  'ob.deleteQ': '이 노트를 휴지통으로 옮길까요?',
 };
 
 const DICTS: Record<Locale, Record<Key, string>> = { en, ko, ja };

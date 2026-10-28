@@ -6,6 +6,7 @@
 
   const R = 44;
   const C = 2 * Math.PI * R;
+  const label = $derived(pomodoro.running ? t('common.pause') : pomodoro.started ? t('common.resume') : t('pomo.start'));
 </script>
 
 <div class="widget" style:--c={PHASES[pomodoro.phase].color}>
@@ -23,9 +24,9 @@
     <div class="side">
       <span class="phase">{PHASES[pomodoro.phase].name()}</span>
       <div class="buttons">
-        <button class="btn primary play" onclick={() => pomodoro.toggle()}>
+        <button class="btn primary play" onclick={() => pomodoro.toggle()} title={label} aria-label={label}>
           {#if pomodoro.running}<Pause size={16} />{:else}<Play size={16} />{/if}
-          {pomodoro.running ? t('common.pause') : pomodoro.started ? t('common.resume') : t('pomo.start')}
+          <span class="lbl">{label}</span>
         </button>
         {#if pomodoro.started}
           <button class="icon-btn" onclick={() => pomodoro.reset()} title={t('pomo.reset')}><RotateCcw size={16} /></button>
@@ -84,16 +85,29 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    min-width: 0;
+  }
+  .buttons :global(.icon-btn) {
+    flex: none;
   }
   /* Longer labels (e.g. Japanese) must stay inside a small tile. */
   .play {
+    flex: 0 1 auto;
     min-width: 0;
     max-width: 100%;
+    overflow: hidden;
     padding-inline: 14px;
     background: var(--c);
     box-shadow: 0 4px 14px color-mix(in srgb, var(--c) 35%, transparent);
   }
   .play :global(svg) {
     flex: none;
+  }
+  /* In a narrow tile the label shortens, then only the icon is left. */
+  .lbl {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

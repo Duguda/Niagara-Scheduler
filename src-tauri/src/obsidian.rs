@@ -216,6 +216,15 @@ pub fn create(root: &Path, folder: &str, title: &str) -> Result<String, String> 
     Ok(rel_string(path.strip_prefix(root).map_err(|e| e.to_string())?))
 }
 
+/// Moves a note to the recycle bin (it can be restored from there).
+pub fn delete(root: &Path, rel: &str) -> Result<(), String> {
+    let path = resolve(root, rel)?;
+    if !is_note(&path) {
+        return Err("not a note".into());
+    }
+    trash::delete(&path).map_err(|e| e.to_string())
+}
+
 /// Switches a note between `.txt` and `.md` (the text stays as it is) and returns the new path.
 pub fn convert(root: &Path, rel: &str) -> Result<String, String> {
     let path = resolve(root, rel)?;

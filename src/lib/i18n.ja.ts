@@ -995,6 +995,8 @@ export const ja: Record<Key, string> = {
   'time.minuteUnit': '分',
   'set.calendar': 'カレンダー',
   'set.calendarBody': '予定の並び順と時刻の選び方を設定します。',
+  'set.pomodoroBody': 'タイマーの長さはポモドーロのページで設定します。',
+  'set.suggestBody': '集中する内容の欄におすすめするToDoの数。期限が近い順（0でオフ）。',
   'set.allDayLast': '終日の予定を最後に表示',
   'set.allDayLastBody': '同じ日に予定が複数あるとき、終日の予定を時刻のある予定の後ろに並べます。複数日にわたる予定は上に表示されたままです。',
   'set.timePicker': '時刻の選び方',

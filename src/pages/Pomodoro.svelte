@@ -32,13 +32,12 @@
   const finished = $derived(sessions.filter((s) => s.completed).length);
   const color = $derived(PHASES[pomodoro.phase].color);
 
-  type StepKey = 'focusMin' | 'shortMin' | 'longMin' | 'longEvery' | 'suggest';
+  type StepKey = 'focusMin' | 'shortMin' | 'longMin' | 'longEvery';
   const settings: { key: StepKey; label: Key; unit: Key; min: number; max: number }[] = [
     { key: 'focusMin', label: 'pomo.focus', unit: 'pomo.min', min: 1, max: 180 },
     { key: 'shortMin', label: 'pomo.short', unit: 'pomo.min', min: 1, max: 60 },
     { key: 'longMin', label: 'pomo.long', unit: 'pomo.min', min: 1, max: 90 },
     { key: 'longEvery', label: 'pomo.longAfter', unit: 'pomo.sessions', min: 1, max: 12 },
-    { key: 'suggest', label: 'pomo.suggest', unit: 'pomo.items', min: 0, max: 5 },
   ];
   const suggestions = $derived(openTodos.slice(0, pomodoro.suggest));
 

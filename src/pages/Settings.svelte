@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import {
     AppWindow, Check, ChevronDown, Database, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Pencil, Sticker, BookOpen,
-    CalendarDays, PanelRight, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
+    CalendarDays, PanelRight, Timer, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
   } from '@lucide/svelte';
   import { calPrefs, setCalPrefs } from '../lib/calPrefs.svelte';
   import { loadPanelWidgets, PANEL_WIDGETS, panelApi, savePanelWidgets, type Corner, type PanelStatus } from '../lib/panel';
@@ -27,6 +27,7 @@
   } from '../lib/window.svelte';
   import { shortcut } from '../lib/clipboard.svelte';
   import { resetPages } from '../lib/pages.svelte';
+  import { pomodoro } from '../lib/pomodoro.svelte';
 
   const LANGUAGES: { id: Locale; name: string; sample: string; badge: string }[] = [
     { id: 'ko', name: '한국어', sample: '안녕하세요! 오늘 일정을 확인해 볼까요?', badge: '가' },
@@ -345,6 +346,27 @@
         <div class="segmented">
           <button class:active={calPrefs.timePicker === 'list'} onclick={() => setCalPrefs({ timePicker: 'list' })}>{t('set.timePickerList')}</button>
           <button class:active={calPrefs.timePicker === 'precise'} onclick={() => setCalPrefs({ timePicker: 'precise' })}>{t('set.timePickerPrecise')}</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div class="icon"><Timer size={18} /></div>
+        <div>
+          <h2>{t('nav.pomodoro')}</h2>
+          <p class="muted small">{t('set.pomodoroBody')}</p>
+        </div>
+      </div>
+      <div class="cal-opt">
+        <span>
+          <span class="cal-opt-title">{t('pomo.suggest')}</span>
+          <span class="muted small">{t('set.suggestBody')}</span>
+        </span>
+        <div class="segmented">
+          {#each [0, 1, 2, 3, 4, 5] as n (n)}
+            <button class:active={pomodoro.suggest === n} onclick={() => { pomodoro.suggest = n; pomodoro.saveSettings(); }}>{n}</button>
+          {/each}
         </div>
       </div>
     </section>

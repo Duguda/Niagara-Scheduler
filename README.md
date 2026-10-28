@@ -187,7 +187,7 @@ Nora와 Niagara는 따로 저장되니까 둘을 같이 설치해 둬도 서로 
 
 ## 설치하기
 
-1. 레포 오른쪽의 **Releases**에서 최신 버전을 열어요. ([바로 가기](https://github.com/Duguda/Niagara-Scheduler/releases/latest))
+1. 레포 오른쪽의 **Releases**를 열어요. ([릴리스 목록](https://github.com/Duguda/Niagara-Scheduler/releases)) 맨 위가 최신 버전이에요. 새 버전은 태그를 올린 뒤 빌드가 끝나야(약 5분) 목록에 나타나요.
 2. **Assets**에서 `Niagara Scheduler_…_x64-setup.exe`를 내려받아 실행해요. zip이 아니라 설치 파일 그대로이고, 로그인도 필요 없어요.
 3. "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 눌러요. 서명되지 않은 개인 빌드라서 그래요.
 4. 설치 폴더를 쓰기 가능한 곳(예: `D:\Program Files\Niagara Scheduler`)으로 고르면 데이터가 그 아래 `data\`에 저장돼요.

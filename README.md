@@ -2,7 +2,7 @@
 
 **Duguda 방식의 Nora.**
 
-[Nora Schedule](https://github.com/ImgyeongLee/NoraSchedule)을 바탕으로, 공부하고 기록하고 계획하는 제 하루에 맞게 다시 짠 데스크톱 스케줄러예요.
+[Nora Schedule](https://github.com/ImgyeongLee/NoraSchedule)을 제 입맛대로 바꾸는 프로젝트예요. 공부하고 기록하고 계획하는 제 하루에 맞게 다시 짠 데스크톱 스케줄러예요.
 Nora의 차분한 디자인과 탄탄한 기본기는 그대로 두고, 제가 쓰지 않는 건 덜어 내고, 제 도구들과 이어지는 길을 더했어요.
 
 모든 데이터는 내 컴퓨터에만 저장돼요.

@@ -187,9 +187,11 @@ Nora와 Niagara는 따로 저장되니까 둘을 같이 설치해 둬도 서로 
 
 `main`에 변경이 올라오면 GitHub Actions가 Windows 설치 파일을 만들어요.
 
-1. 이 레포의 **Actions** 탭 → **Build Windows installer** → 가장 최근의 성공한 실행을 열어요.
-2. 아래 **Artifacts**에서 `niagara-scheduler-windows`를 내려받아 압축을 풀고 `…-setup.exe`를 실행해요. (GitHub 로그인이 필요해요.)
-3. "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 눌러요. 서명되지 않은 개인 빌드라서 그래요.
+1. 레포 맨 위 메뉴의 **Actions** 탭을 눌러요. ([바로 가기](https://github.com/Duguda/Niagara-Scheduler/actions/workflows/build.yml))
+2. 왼쪽 목록에서 **Build Windows installer**를 고르고, 오른쪽 목록에서 초록 체크(✓)가 붙은 맨 위 실행의 제목을 눌러요.
+3. 열린 실행 요약 화면을 **맨 아래까지 내리면** **Artifacts** 칸이 있어요. `niagara-scheduler-windows`를 눌러 zip을 내려받아요. (GitHub에 로그인해야 보여요.)
+4. zip을 풀고 `…-setup.exe`를 실행해요.
+5. "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**을 눌러요. 서명되지 않은 개인 빌드라서 그래요.
 
 ## 직접 빌드하기
 

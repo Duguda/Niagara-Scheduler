@@ -1,7 +1,7 @@
-# Nora Schedule
+# Niagara Schedule
 
 일정, 할 일, 디데이, 메모, 식단·운동, 독서·TRPG 기록, 집중 시간까지 한 곳에서 관리하는 가벼운 데스크톱 스케줄러입니다.
-모든 데이터는 내 컴퓨터에만 저장돼요.
+모든 데이터는 내 컴퓨터에만 저장돼요. 이런 기능을 가진 Nora Shedule을 입맛대로 바꾸는 프로젝트입니다.
 
 ## 공지사항
 Windows 10/11 그리고 macOS (Apple Silicon · M1 이후) 호환

@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { CalendarPlus, ChevronLeft, ChevronRight, Leaf, MapPin, Repeat, Settings2, Tags, Target } from '@lucide/svelte';
+  import { CalendarPlus, ChevronLeft, ChevronRight, Leaf, Link2, MapPin, Repeat, Settings2, Tags, Target } from '@lucide/svelte';
+  import CalendarConnect from '../components/CalendarConnect.svelte';
+  import Modal from '../components/Modal.svelte';
   import MiniCalendar from '../components/MiniCalendar.svelte';
   import MonthView from './MonthView.svelte';
   import TimeGrid from './TimeGrid.svelte';
@@ -131,6 +133,7 @@
     cursor = day;
     view = 'day';
   }
+  let connectOpen = $state(false);
 </script>
 
 <div class="calendar">
@@ -142,8 +145,15 @@
       <button class="icon-btn" onclick={() => step(1)} aria-label={t('common.next')}><ChevronRight size={18} /></button>
     </div>
     <span class="spacer"></span>
+    <button class="btn" onclick={() => (connectOpen = true)} title={t('sub.open')}><Link2 size={16} /> {t('sub.open')}</button>
     <button class="btn primary" onclick={() => newEvent(cursor)}><CalendarPlus size={17} /> {t('cal.new')}</button>
   </header>
+
+  {#if connectOpen}
+    <Modal title={t('sub.modalTitle')} onclose={() => (connectOpen = false)} width={600}>
+      <CalendarConnect />
+    </Modal>
+  {/if}
 
   <!-- Sits above the side calendar, so the big calendar and the side column start at the same height. -->
   <div class="segmented views">

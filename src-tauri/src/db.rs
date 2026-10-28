@@ -317,6 +317,22 @@ pub struct IcsReport {
     pub rules_dropped: usize,
     /// Imported before but deleted in Niagara since; not brought back.
     pub deleted_kept: usize,
+    /// Subscriptions: events gone from the feed, removed here too.
+    pub removed: usize,
+}
+
+/// Whether two stored events would look the same (to skip rewriting unchanged imports).
+fn same_event(a: &Event, b: &Event) -> bool {
+    a.title == b.title
+        && a.start == b.start
+        && a.end == b.end
+        && a.all_day == b.all_day
+        && a.location == b.location
+        && a.links == b.links
+        && a.memo == b.memo
+        && a.repeat == b.repeat
+        && a.exdates == b.exdates
+        && a.cancelled == b.cancelled
 }
 
 /// A user-defined label for events, optionally grouped under a category.
@@ -850,24 +866,53 @@ impl Db {
     /// Adds the events, or updates the ones an earlier import of the same calendar created
     /// (their color, tags and reminder stay as set in Niagara). Past events are skipped unless asked.
     pub fn ics_import(&self, events: &[crate::ics::IcsEvent], include_past: bool, today: NaiveDate) -> DbResult<IcsReport> {
-        const IMPORT_COLOR: u32 = 0x4aa8ff;
+        let cutoff = if include_past { NaiveDate::MIN } else { today };
+        self.ics_apply(events, "", 0x4aa8ff, cutoff, false)
+    }
+
+    /// Brings a subscribed calendar up to date: adds and updates its events, and removes the ones
+    /// that are gone from the feed (deleted or moved in Google Calendar). Events that ended before
+    /// `cutoff` are left as they are. Keys are stored as `sub:<id>:<uid>`.
+    pub fn ics_sync(&self, events: &[crate::ics::IcsEvent], sub_id: &str, color: u32, cutoff: NaiveDate) -> DbResult<IcsReport> {
+        self.ics_apply(events, &format!("sub:{sub_id}:"), color, cutoff, true)
+    }
+
+    /// Removes a subscription's events and its records.
+    pub fn ics_unsubscribe(&self, sub_id: &str) -> DbResult<usize> {
+        let prefix = format!("sub:{sub_id}:");
+        let ids: Vec<i64> = {
+            let mut st = self.conn.prepare("SELECT event_id FROM ics_imports WHERE substr(uid, 1, length(?1)) = ?1")?;
+            st.query_map([&prefix], |r| r.get(0))?.collect::<Result<_, _>>()?
+        };
+        let tx = self.conn.unchecked_transaction()?;
+        for id in &ids {
+            self.conn.execute("DELETE FROM events WHERE id=?1", [id])?;
+        }
+        self.conn.execute("DELETE FROM ics_imports WHERE substr(uid, 1, length(?1)) = ?1", [&prefix])?;
+        tx.commit()?;
+        Ok(ids.len())
+    }
+
+    fn ics_apply(&self, events: &[crate::ics::IcsEvent], prefix: &str, color: u32, cutoff: NaiveDate, remove_missing: bool) -> DbResult<IcsReport> {
         let mut report = IcsReport::default();
+        let mut seen = std::collections::HashSet::new();
         let tx = self.conn.unchecked_transaction()?;
         // Series first, so moved occurrences can be taken out of them.
         let mut ordered: Vec<&crate::ics::IcsEvent> = events.iter().collect();
         ordered.sort_by_key(|e| e.recurrence_id.is_some());
         for e in ordered {
-            if !include_past && Self::ics_is_past(e, today) {
+            let key = format!("{prefix}{}", Self::ics_key(e));
+            seen.insert(key.clone());
+            if Self::ics_is_past(e, cutoff) {
                 report.past_skipped += 1;
                 continue;
             }
             if let Some(day) = e.recurrence_id
-                && let Some(series) = self.ics_existing(&e.uid)?
+                && let Some(series) = self.ics_existing(&format!("{prefix}{}", e.uid))?
                 && series.repeat.is_some()
             {
                 self.add_exdate(&series, day)?;
             }
-            let key = Self::ics_key(e);
             let existing = self.ics_existing(&key)?;
             // Imported before and deleted in Niagara since: leave it deleted.
             if existing.is_none() && self.conn.query_row("SELECT 1 FROM ics_imports WHERE uid=?1", [&key], |_| Ok(())).optional()?.is_some() {
@@ -880,7 +925,7 @@ impl Db {
                 start: e.start,
                 end: e.end,
                 all_day: e.all_day,
-                color: existing.as_ref().map_or(IMPORT_COLOR, |x| x.color),
+                color: existing.as_ref().map_or(color, |x| x.color),
                 location: e.location.clone(),
                 links: e.url.iter().cloned().collect(),
                 memo: e.memo.clone(),
@@ -892,16 +937,17 @@ impl Db {
                 reminder: existing.as_ref().and_then(|x| x.reminder),
             };
             match existing {
-                Some(_) => {
+                Some(old) => {
                     // Keep dates removed in Niagara ("delete just this one") as well as the file's.
                     let mut exdates = event.exdates.clone();
-                    if let Some(old) = self.event(event.id)? {
-                        exdates.extend(old.exdates);
-                    }
+                    exdates.extend(old.exdates.iter().copied());
                     exdates.sort_unstable();
                     exdates.dedup();
-                    self.update_event_row(&Event { exdates, ..event })?;
-                    report.updated += 1;
+                    let next = Event { exdates, ..event };
+                    if !same_event(&old, &next) {
+                        self.update_event_row(&next)?;
+                        report.updated += 1;
+                    }
                 }
                 None => {
                     let id = self.insert_event(&event)?;
@@ -910,6 +956,20 @@ impl Db {
                 }
             }
             report.rules_dropped += usize::from(e.rule_dropped);
+        }
+        if remove_missing && !prefix.is_empty() {
+            let gone: Vec<(String, i64)> = {
+                let mut st = self.conn.prepare("SELECT uid, event_id FROM ics_imports WHERE substr(uid, 1, length(?1)) = ?1")?;
+                st.query_map([prefix], |r| Ok((r.get(0)?, r.get(1)?)))?
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .filter(|(uid, _)| !seen.contains(uid))
+                    .collect()
+            };
+            for (uid, id) in gone {
+                report.removed += self.conn.execute("DELETE FROM events WHERE id=?1", [id])?;
+                self.conn.execute("DELETE FROM ics_imports WHERE uid=?1", [&uid])?;
+            }
         }
         tx.commit()?;
         Ok(report)
@@ -1376,14 +1436,39 @@ pub(crate) mod tests {
         assert_eq!((r.added, r.updated, r.past_skipped), (2, 0, 1));
         let series = db.ics_existing("x1").unwrap().unwrap();
         assert_eq!(series.exdates, vec![d("2026-11-06")]);
-        // Same file again: nothing new, both updated.
+        // Same file again: nothing new, nothing changed.
         let r = db.ics_import(&events, false, today).unwrap();
-        assert_eq!((r.added, r.updated), (0, 2));
+        assert_eq!((r.added, r.updated), (0, 0));
         assert_eq!(db.ics_preview(&events, today).unwrap().already, 2);
         // Deleted in Niagara: a later import leaves it out.
         db.conn.execute("DELETE FROM events WHERE id=?1", [series.id]).unwrap();
         let r = db.ics_import(&events, false, today).unwrap();
         assert_eq!((r.added, r.deleted_kept), (0, 1));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn ics_sync_follows_the_feed_and_unsubscribe_cleans_up() {
+        let (db, path) = temp_db();
+        let today = d("2026-10-28");
+        let feed = |body: &str| crate::ics::parse(&format!("BEGIN:VCALENDAR\n{body}END:VCALENDAR"));
+        let a = "BEGIN:VEVENT\nUID:a\nDTSTART:20261101T090000\nSUMMARY:A\nEND:VEVENT\n";
+        let b = "BEGIN:VEVENT\nUID:b\nDTSTART:20261102T090000\nSUMMARY:B\nEND:VEVENT\n";
+        let b2 = "BEGIN:VEVENT\nUID:b\nDTSTART:20261102T100000\nSUMMARY:B moved\nEND:VEVENT\n";
+        let r = db.ics_sync(&feed(&format!("{a}{b}")), "s1", 0x22b5bf, today).unwrap();
+        assert_eq!((r.added, r.updated, r.removed), (2, 0, 0));
+        // Unchanged: nothing written.
+        let r = db.ics_sync(&feed(&format!("{a}{b}")), "s1", 0x22b5bf, today).unwrap();
+        assert_eq!((r.added, r.updated, r.removed), (0, 0, 0));
+        // b changed, a deleted in Google.
+        let r = db.ics_sync(&feed(b2), "s1", 0x22b5bf, today).unwrap();
+        assert_eq!((r.added, r.updated, r.removed), (0, 1, 1));
+        assert_eq!(db.ics_existing("sub:s1:b").unwrap().unwrap().title, "B moved");
+        assert!(db.ics_existing("sub:s1:a").unwrap().is_none());
+        // A manual import of the same UID is separate from the subscription.
+        assert_eq!(db.ics_import(&feed(b), false, today).unwrap().added, 1);
+        assert_eq!(db.ics_unsubscribe("s1").unwrap(), 1);
+        assert!(db.ics_existing("b").unwrap().is_some());
         let _ = std::fs::remove_file(path);
     }
 

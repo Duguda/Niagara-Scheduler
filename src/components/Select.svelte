@@ -6,6 +6,8 @@
     color?: string;
     /** Indent level for nested items (folders). */
     depth?: number;
+    /** Tree lines drawn before the label in the list only (e.g. `│ └`), not in the button. */
+    tree?: string;
   }
 </script>
 
@@ -115,6 +117,7 @@
           onclick={() => pick(o)}
         >
           {#if o.color}<span class="dot" style:background={o.color}></span>{/if}
+          {#if o.tree}<span class="tree" aria-hidden="true">{o.tree}</span>{/if}
           <span class="truncate">{o.label}</span>
           {#if o.value === value}<span class="tick"><Check size={15} strokeWidth={2.5} /></span>{/if}
         </button>
@@ -183,6 +186,12 @@
     max-height: 280px;
     overflow-y: auto;
     margin: -4px;
+  }
+  .tree {
+    flex: none;
+    color: var(--faint);
+    font-family: var(--mono);
+    white-space: pre;
   }
   .option {
     display: flex;

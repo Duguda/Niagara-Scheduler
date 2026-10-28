@@ -287,6 +287,17 @@ export interface StorageInfo {
   portable: boolean;
 }
 
+/** A subscribed calendar address (see src-tauri/src/calsub.rs). */
+export interface CalSub {
+  id: string;
+  name: string;
+  url: string;
+  color: number;
+  last_sync: number | null;
+  last_error: string | null;
+  events: number;
+}
+
 /** What importing a calendar file would do (see src-tauri/src/ics.rs). */
 export interface IcsPreview {
   total: number;
@@ -303,6 +314,7 @@ export interface IcsReport {
   past_skipped: number;
   rules_dropped: number;
   deleted_kept: number;
+  removed: number;
 }
 
 /** A .md or .txt note in a note folder (see src-tauri/src/obsidian.rs). */
@@ -463,6 +475,10 @@ export const api = {
 
   obsidianNotes: () => invoke<NoteMeta[]>('obsidian_notes'),
   obsidianRead: (path: string, root: string) => invoke<string>('obsidian_read', { path, root }),
+  calSubs: () => invoke<CalSub[]>('cal_subs'),
+  calSubAdd: (name: string, url: string) => invoke<IcsReport>('cal_sub_add', { name, url }),
+  calSubRemove: (id: string, keepEvents: boolean) => invoke<void>('cal_sub_remove', { id, keepEvents }),
+  calSubSync: (id: string | null) => invoke<void>('cal_sub_sync', { id }),
   icsPreview: (path: string) => invoke<IcsPreview>('ics_preview', { path }),
   icsImport: (path: string, includePast: boolean) => invoke<IcsReport>('ics_import', { path, includePast }),
   noteFilePath: (path: string, root: string) => invoke<string>('note_file_path', { path, root }),

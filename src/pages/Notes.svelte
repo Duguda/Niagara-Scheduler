@@ -67,10 +67,24 @@
     }
     return [...all].sort((a, b) => a.localeCompare(b));
   });
-  const folderOptions = $derived([
-    { value: '', label: t('ob.allFolders') },
-    ...folders.map((f) => ({ value: f, label: '\u2003'.repeat(f.split('/').length - 1) + f.split('/').pop() })),
-  ]);
+  /** Tree lines for the folder picker: │ while a parent has more below, ├ / └ for the folder itself. */
+  const folderOptions = $derived.by(() => {
+    const parentOf = (f: string) => f.slice(0, Math.max(0, f.lastIndexOf('/')));
+    const hasLater = (f: string) => {
+      const p = parentOf(f);
+      return folders.some((o) => o !== f && parentOf(o) === p && o.localeCompare(f) > 0);
+    };
+    return [
+      { value: '', label: t('ob.allFolders') },
+      ...folders.map((f) => {
+        const parts = f.split('/');
+        let tree = '';
+        for (let i = 1; i < parts.length - 1; i++) tree += hasLater(parts.slice(0, i + 1).join('/')) ? '│ ' : '  ';
+        if (parts.length > 1) tree += hasLater(f) ? '├ ' : '└ ';
+        return { value: f, label: parts[parts.length - 1], tree };
+      }),
+    ];
+  });
   /** A note is in a folder when it sits there or in one of its sub-folders. */
   const inFolder = (n: NoteMeta, f: string) => {
     const nf = noteFolder(n);

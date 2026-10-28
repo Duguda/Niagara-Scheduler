@@ -197,10 +197,14 @@ export function installMock() {
     '10 Study/Network.md': '# Network\n\nOSI 7 layers.',
     '10 Study/네트워크관리사.md': '# 네트워크관리사 2급 핵심 #암기\n\nOSI 7계층 중 라우팅을 담당하는 계층은 **네트워크 계층**이다. 스위치는 **데이터 링크 계층**에서 동작한다.\n\n- C 클래스 기본 서브넷 마스크: **255.255.255.0**\n- TCP 연결 수립: **3-way handshake**\n- DNS 기본 포트: **53**\n\n> [!tip] 헷갈림\n> UDP 포트 **53**도 DNS가 쓴다.',
     '20 Daily/2026-10-28.md': 'Ran 5km.',
+    '120 - 연구/121 - Digital Forensics/자료/논문 메모.md': '# 논문 메모',
+    '120 - 연구/121 - Digital Forensics/회의/1회차.md': '# 1회차 회의',
+    '120 - 연구/122 - CV/개요.md': '# 개요',
     '40 Script/발표 대본.md': '# 발표 대본 #암기\n\n지금부터 발표를 시작하겠습니다. 오늘은 세 가지를 이야기합니다.\n\n## 1. 배경\n\n1948년 5월 10일 최초의 민주적 선거가 치러졌고, **8월 15일** 정부가 수립되었습니다.\n\n## 2. 핵심\n\n자유민주주의와 시장경제체제는 지난 50년간 유례없는 발전을 이뤘습니다.\n\n## 3. 결론\n\n정리하면, 우리는 자유와 평화를 지키는 국가대표입니다.',
     '30 Inbox/강의 메모.txt': '운영체제 3주차\n\n- 프로세스 vs 스레드\n- 문맥 교환 비용\n\n# 이건 txt라 제목 서식이 아니에요',
   };
   const noteTimes: Record<string, number> = {};
+  const calSubs: any[] = [];
   const previewLocale = new URLSearchParams(location.search).get('locale');
   if (previewLocale) settings['ui.locale'] = previewLocale;
   let tracker = { paused: false, idle_threshold_secs: 300, tracked_apps: ['Code', 'Google Chrome'] };
@@ -452,6 +456,10 @@ export function installMock() {
       case 'delete_book': { const i = books.findIndex((b) => b.id === a.id); return i < 0 ? null : books.splice(i, 1)[0]; }
       case 'plugin:dialog|save': return '/Users/you/Documents/Niagara-backup.nia';
       case 'plugin:dialog|open': return JSON.stringify(a).includes('ics') ? '/Users/you/Downloads/google-calendar.zip' : '/Users/you/Documents/Niagara-backup.nia';
+      case 'cal_subs': return calSubs;
+      case 'cal_sub_add': calSubs.push({ id: String(Date.now()), name: a.name || '개인', url: a.url, color: 0x22b5bf, last_sync: Math.floor(Date.now() / 1000), last_error: null, events: 42 }); return { added: 12, updated: 0, past_skipped: 30, rules_dropped: 0, deleted_kept: 0, removed: 0 };
+      case 'cal_sub_remove': calSubs.splice(calSubs.findIndex((s) => s.id === a.id), 1); return null;
+      case 'cal_sub_sync': for (const s of calSubs) s.last_sync = Math.floor(Date.now() / 1000); return null;
       case 'ics_preview': return { total: 128, repeating: 9, past: 97, already: 0, rules_dropped: 2, calendars: ['개인', 'ROTC'] };
       case 'ics_import': return { added: a.includePast ? 128 : 31, updated: 0, past_skipped: a.includePast ? 0 : 97, rules_dropped: 2, deleted_kept: 0 };
       case 'export_data':

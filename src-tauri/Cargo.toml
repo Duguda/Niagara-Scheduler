@@ -1,6 +1,6 @@
 [package]
 name = "niagara-scheduler"
-version = "0.14.0"
+version = "0.15.0"
 description = "A light desktop schedule manager"
 edition = "2024"
 
@@ -24,6 +24,7 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-window-state = "2"
 trash = "5"
+ureq = "2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [profile.release]

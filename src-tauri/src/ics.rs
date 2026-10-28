@@ -286,6 +286,11 @@ fn build(props: &[(String, Vec<(String, String)>, String)]) -> Option<IcsEvent> 
     })
 }
 
+/// The calendar's name (`X-WR-CALNAME`), if the feed has one.
+pub fn calendar_name(text: &str) -> Option<String> {
+    unfold(text).iter().filter_map(|l| split_prop(l)).find(|(n, _, _)| n == "X-WR-CALNAME").map(|p| unescape(&p.2)).filter(|n| !n.trim().is_empty())
+}
+
 /// Reads a `.ics` file, or every `.ics` inside a `.zip` (Google Calendar's full export).
 /// Returns the events and the calendars' names.
 pub fn read_file(path: &Path) -> Result<(Vec<IcsEvent>, Vec<String>), String> {
@@ -317,9 +322,7 @@ pub fn read_file(path: &Path) -> Result<(Vec<IcsEvent>, Vec<String>), String> {
     let mut names = Vec::new();
     for text in &texts {
         events.extend(parse(text));
-        if let Some(name) = unfold(text).iter().filter_map(|l| split_prop(l)).find(|(n, _, _)| n == "X-WR-CALNAME") {
-            names.push(unescape(&name.2));
-        }
+        names.extend(calendar_name(text));
     }
     Ok((events, names))
 }

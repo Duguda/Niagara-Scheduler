@@ -478,6 +478,52 @@ pub async fn ics_import(state: State<'_, AppState>, path: String, include_past: 
     with_db(&state, |db| db.ics_import(&events, include_past, today))
 }
 
+// ---- calendar subscriptions (see calsub.rs) ---------------------------------------------------
+
+#[tauri::command]
+pub fn cal_subs(state: State<AppState>) -> CmdResult<Vec<crate::calsub::Subscription>> {
+    with_db(&state, crate::calsub::list)
+}
+
+/// Reads the address once, then keeps it (events added now; later reads follow the feed).
+#[tauri::command]
+pub async fn cal_sub_add(app: tauri::AppHandle, state: State<'_, AppState>, name: String, url: String) -> CmdResult<crate::db::IcsReport> {
+    let url = crate::calsub::normalize(&url)?;
+    let fetch_url = url.clone();
+    let (events, cal_name) = tauri::async_runtime::spawn_blocking(move || crate::calsub::fetch(&fetch_url)).await.map_err(|e| e.to_string())??;
+    let db = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
+    let (_, report) = crate::calsub::add(&db, &name, &url, &events, cal_name)?;
+    drop(db);
+    crate::calsub::notify(&app);
+    Ok(report)
+}
+
+#[tauri::command]
+pub fn cal_sub_remove(app: tauri::AppHandle, state: State<AppState>, id: String, keep_events: bool) -> CmdResult<()> {
+    with_db(&state, |db| crate::calsub::remove(db, &id, keep_events))?;
+    crate::calsub::notify(&app);
+    Ok(())
+}
+
+/// Reads one subscription (or all) now.
+#[tauri::command]
+pub async fn cal_sub_sync(app: tauri::AppHandle, id: Option<String>) -> CmdResult<()> {
+    use tauri::Manager;
+    let handle = app.clone();
+    let changed = tauri::async_runtime::spawn_blocking(move || {
+        let state = handle.state::<AppState>();
+        let lock = || state.db.lock().map_err(|_| rusqlite::Error::InvalidQuery);
+        crate::calsub::sync(|| crate::calsub::list(&*lock()?), |f| f(&*lock()?), id.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    if changed {
+        crate::calsub::notify(&app);
+    }
+    Ok(())
+}
+
 /// Saves a note's text (see `obsidian::write`); returns the new modified time.
 #[tauri::command]
 pub fn note_write(state: State<AppState>, root: String, path: String, text: String, expected_modified: Option<i64>) -> CmdResult<i64> {

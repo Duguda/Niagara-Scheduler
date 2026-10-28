@@ -2,6 +2,7 @@
 
 mod backup;
 mod brief;
+mod calsub;
 mod bookmarks;
 mod cloze;
 mod commands;
@@ -97,6 +98,7 @@ fn main() {
             }
             reminders::start(app.handle().clone(), db_path.clone());
             brief::start(db_path.clone(), storage.brief.clone());
+            calsub::start(app.handle().clone(), db_path.clone());
             let tracker = tracker::start(db_path, tracker::TrackerSettings::load(&db), tracker::feature_enabled(&db));
             app.manage(AppState { db: Mutex::new(db), tracker, images_dir, data_dir: dir, storage });
 
@@ -126,6 +128,10 @@ fn main() {
             commands::obsidian_notes,
             commands::obsidian_read,
             commands::note_file_path,
+            commands::cal_subs,
+            commands::cal_sub_add,
+            commands::cal_sub_remove,
+            commands::cal_sub_sync,
             commands::ics_preview,
             commands::ics_import,
             commands::note_write,

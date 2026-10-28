@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    AppWindow, CalendarPlus, Check, ChevronDown, Database, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Pencil, Sticker, BookOpen,
+    AppWindow, Check, ChevronDown, Database, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Pencil, Sticker, BookOpen,
     CalendarDays, PanelRight, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
   } from '@lucide/svelte';
   import { calPrefs, setCalPrefs } from '../lib/calPrefs.svelte';
@@ -12,13 +12,13 @@
   import PageToggles from '../components/PageToggles.svelte';
   import { openGuide } from '../lib/guide.svelte';
   import { checkForUpdate, installUpdate, updater } from '../lib/updater.svelte';
-  import { api, type BackupManifest, type IcsPreview, type StorageInfo } from '../lib/api';
+  import { api, type BackupManifest, type StorageInfo } from '../lib/api';
   import { folderName, MEMO_DIR_KEY, READ_DIRS_KEY, readDirsFrom } from '../lib/obsidian';
   import { setDecorating, stickers } from '../lib/stickers.svelte';
   import { backupError, exportBackup, pickBackup } from '../lib/backup';
   import { fmtTs } from '../lib/dates';
   import { i18n, setLocale, t, type Locale } from '../lib/i18n.svelte';
-  import { ACCENTS, mutate, setAccent, setCustomTheme, setTheme, toast, ui, type PresetAccent, type ThemePref } from '../lib/state.svelte';
+  import { ACCENTS, setAccent, setCustomTheme, setTheme, toast, ui, type PresetAccent, type ThemePref } from '../lib/state.svelte';
   import { fromHex, hex } from '../lib/colors';
   import { DEFAULT_CUSTOM_THEME, TINT_LEVELS } from '../lib/customTheme';
   import {
@@ -144,33 +144,6 @@
   }
 
   const run = (p: Promise<unknown>) => p.catch((e) => toast(String(e), 'error'));
-
-  // ---- calendar import (.ics or Google Calendar's .zip export), see src-tauri/src/ics.rs
-  let calImport = $state<{ path: string; preview: IcsPreview } | null>(null);
-  let calPast = $state(false);
-  let calBusy = $state(false);
-
-  async function pickCalendar() {
-    try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const path = await open({ multiple: false, directory: false, filters: [{ name: t('ics.fileType'), extensions: ['ics', 'zip'] }] });
-      if (typeof path !== 'string') return;
-      calPast = false;
-      calImport = { path, preview: await api.icsPreview(path) };
-    } catch (e) {
-      toast(t('ics.readFailed', { error: String(e) }), 'error');
-    }
-  }
-
-  async function confirmCalendar() {
-    if (!calImport) return;
-    calBusy = true;
-    const r = await mutate(api.icsImport(calImport.path, calPast));
-    calBusy = false;
-    if (!r) return;
-    calImport = null;
-    toast(t('ics.done', { added: r.added, updated: r.updated }), 'success');
-  }
 
   // ---- backup / restore / reset
   let exporting = $state(false);
@@ -528,13 +501,6 @@
             <span class="muted small">{t('data.exportHint')}</span>
           </span>
         </button>
-        <button class="data-action" onclick={pickCalendar}>
-          <span class="da-icon"><CalendarPlus size={20} /></span>
-          <span class="da-text">
-            <span class="strong">{t('ics.import')}</span>
-            <span class="muted small">{t('ics.importHint')}</span>
-          </span>
-        </button>
       </div>
     </section>
 
@@ -637,33 +603,6 @@
     </details>
   </div>
 </div>
-
-{#if calImport}
-  {@const p = calImport.preview}
-  <Modal title={t('ics.title')} onclose={() => !calBusy && (calImport = null)} width={480}>
-    {#if p.calendars.length}<p class="strong">{p.calendars.join(' · ')}</p>{/if}
-    <ul class="ics-counts small">
-      <li>{t('ics.total', { n: p.total }) + (p.repeating ? ` · ${t('ics.repeating', { n: p.repeating })}` : '')}</li>
-      {#if p.already}<li>{t('ics.already', { n: p.already })}</li>{/if}
-      {#if p.past}<li>{t('ics.past', { n: p.past })}</li>{/if}
-      {#if p.rules_dropped}<li class="warn">{t('ics.rulesDropped', { n: p.rules_dropped })}</li>{/if}
-    </ul>
-    {#if p.past}
-      <label class="ics-past">
-        <input type="checkbox" class="switch" bind:checked={calPast} />
-        <span class="small">{t('ics.includePast')}</span>
-      </label>
-    {/if}
-    <p class="faint small">{t('ics.note')}</p>
-    {#snippet footer()}
-      <span class="spacer"></span>
-      <button class="btn ghost" onclick={() => (calImport = null)} disabled={calBusy}>{t('common.cancel')}</button>
-      <button class="btn primary" onclick={confirmCalendar} disabled={calBusy || p.total === 0 || (!calPast && p.total === p.past)}>
-        <CalendarPlus size={15} /> {t('ics.confirm', { n: calPast ? p.total : p.total - p.past })}
-      </button>
-    {/snippet}
-  </Modal>
-{/if}
 
 {#if importing}
   <Modal title={t('data.importTitle')} onclose={() => !restarting && (importing = null)} width={480}>
@@ -1056,23 +995,6 @@
   }
   .sub-label {
     margin: 4px 0 8px;
-  }
-  .ics-counts {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin: 6px 0 12px;
-    padding-left: 18px;
-  }
-  .ics-counts .warn {
-    color: var(--danger);
-  }
-  .ics-past {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
-    cursor: pointer;
   }
   .drag-hint {
     margin: 10px 0 0;

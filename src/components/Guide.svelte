@@ -1,7 +1,8 @@
 <script lang="ts">
   // First-run guide in five short steps. Everything here can be changed later in Settings,
   // and the guide itself can be reopened from Settings → About.
-  import { Brain, Check, FolderOpen, FileText, FolderTree, Languages, LayoutGrid } from '@lucide/svelte';
+  import { Brain, Check, FolderOpen, FileText, FolderTree, Languages, LayoutGrid, Link2 } from '@lucide/svelte';
+  import CalendarConnect from './CalendarConnect.svelte';
   import Modal from './Modal.svelte';
   import PageToggles from './PageToggles.svelte';
   import { api } from '../lib/api';
@@ -14,6 +15,7 @@
     { icon: Languages, title: 'guide.s1Title' },
     { icon: LayoutGrid, title: 'guide.s2Title' },
     { icon: FileText, title: 'guide.s3Title' },
+    { icon: Link2, title: 'guide.calTitle' },
     { icon: Brain, title: 'guide.s4Title' },
     { icon: FolderTree, title: 'guide.s5Title' },
   ] as const;
@@ -83,6 +85,9 @@
       </div>
       <p class="faint small">{t('guide.s3Later')}</p>
     {:else if step === 3}
+      <CalendarConnect compact />
+      <p class="faint small">{t('guide.calLater')}</p>
+    {:else if step === 4}
       <p>{t('guide.s4Body')}</p>
       <pre class="sample"><code>{t('guide.s4Sample')}</code></pre>
       <ul class="keys small">

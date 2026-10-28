@@ -184,19 +184,22 @@ export function installMock() {
     book(3006, '어떤 물질의 사랑', '천선란', 'want'),
     book(3007, 'Klara and the Sun', 'Kazuo Ishiguro', 'want'),
   ];
-  const settings: Record<string, string> = { 'expense.currency': 'KRW', 'expense.budget': '1200000', 'obsidian.vault': 'D:\\Notes\\Vault' };
+  const VAULT = 'D:\\Notes\\Vault';
+  const settings: Record<string, string> = { 'expense.currency': 'KRW', 'expense.budget': '1200000', 'notes.readDirs': JSON.stringify([VAULT]), 'notes.memoDir': VAULT + '\\Niagara' };
   // Cloze records for the study page preview: one blank already weak and due today.
   const cloze: Record<string, ClozeStat> = {
-    'ob:10 Study/네트워크관리사.md|255.255.255.0|0': { key: 'ob:10 Study/네트워크관리사.md|255.255.255.0|0', right: 0, wrong: 1, last_right: false, box_no: 1, due: ymd(new Date()) },
+    [`obx:${VAULT}|10 Study/네트워크관리사.md|255.255.255.0|0`]: { key: `obx:${VAULT}|10 Study/네트워크관리사.md|255.255.255.0|0`, right: 0, wrong: 1, last_right: false, box_no: 1, due: ymd(new Date()) },
   };
-  // A tiny Obsidian vault for the browser preview of the Obsidian page.
+  // A tiny note folder (an Obsidian vault) for the browser preview of the Notes page.
   const vaultNotes: Record<string, string> = {
     'Home.md': '---\ntags: [hub]\n---\n# Home\n\nStudy hub. See [[SQL 정리]] and [[Network|network notes]].\n\n> [!tip] Today\n> Review ==JOIN== before the exam.\n\n![[diagram.png]]',
     '10 Study/SQL 정리.md': '# SQL 정리 #암기\n\n- **INNER JOIN**: 양쪽에 다 있는 행\n- [x] SELECT\n- [ ] JOIN\n\n> [!warning] 주의\n> GROUP BY 다음에 HAVING.\n\n```sql\nSELECT * FROM t; -- [[not a link]]\n```\n\nBack to [[Home]]. Also [network](Network.md).\n\n![chart](img/chart.png)',
     '10 Study/Network.md': '# Network\n\nOSI 7 layers.',
     '10 Study/네트워크관리사.md': '# 네트워크관리사 2급 핵심 #암기\n\nOSI 7계층 중 라우팅을 담당하는 계층은 **네트워크 계층**이다. 스위치는 **데이터 링크 계층**에서 동작한다.\n\n- C 클래스 기본 서브넷 마스크: **255.255.255.0**\n- TCP 연결 수립: **3-way handshake**\n- DNS 기본 포트: **53**\n\n> [!tip] 헷갈림\n> UDP 포트 **53**도 DNS가 쓴다.',
     '20 Daily/2026-10-28.md': 'Ran 5km.',
+    '30 Inbox/강의 메모.txt': '운영체제 3주차\n\n- 프로세스 vs 스레드\n- 문맥 교환 비용\n\n# 이건 txt라 제목 서식이 아니에요',
   };
+  const noteTimes: Record<string, number> = {};
   const previewLocale = new URLSearchParams(location.search).get('locale');
   if (previewLocale) settings['ui.locale'] = previewLocale;
   let tracker = { paused: false, idle_threshold_secs: 300, tracked_apps: ['Code', 'Google Chrome'] };
@@ -208,27 +211,47 @@ export function installMock() {
       case 'get_setting': return settings[a.key] ?? null;
       case 'set_setting': settings[a.key] = a.value; return null;
       case 'obsidian_notes':
-        if (!settings['obsidian.vault']) throw 'no vault';
+        if (!settings['notes.readDirs'] || settings['notes.readDirs'] === '[]') throw 'no note folder';
         return Object.keys(vaultNotes).map((path, i) => {
           const folder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
-          return { root: '', path, title: path.split('/').pop()!.replace(/\.md$/, ''), folder, modified: now - i * 3600, size: vaultNotes[path].length };
+          return { root: VAULT, path, title: path.split('/').pop()!.replace(/\.(md|txt)$/i, ''), folder, modified: noteTimes[path] ?? now - i * 3600, size: vaultNotes[path].length };
         });
       case 'obsidian_read': {
         const text = vaultNotes[a.path];
         if (text === undefined) throw 'note not found';
         return text;
       }
-      case 'obsidian_open_url': return 'obsidian://open?path=' + encodeURIComponent(a.path);
+      case 'note_write':
+        if (a.expectedModified !== null && (noteTimes[a.path] ?? 0) > a.expectedModified) throw 'changed';
+        vaultNotes[a.path] = a.text;
+        noteTimes[a.path] = Math.floor(Date.now() / 1000);
+        return noteTimes[a.path];
+      case 'note_create': {
+        const dir = a.folder ? a.folder.replace(/^\/+|\/+$/g, '') + '/' : '';
+        let path = `${dir}${a.title || 'Untitled'}.md`;
+        for (let n = 2; path in vaultNotes; n++) path = `${dir}${a.title || 'Untitled'} ${n}.md`;
+        vaultNotes[path] = '';
+        noteTimes[path] = Math.floor(Date.now() / 1000);
+        return path;
+      }
+      case 'note_convert': {
+        const to = /\.txt$/i.test(a.path) ? a.path.replace(/\.txt$/i, '.md') : a.path.replace(/\.md$/i, '.txt');
+        if (to in vaultNotes) throw 'exists';
+        vaultNotes[to] = vaultNotes[a.path];
+        delete vaultNotes[a.path];
+        return to;
+      }
+      case 'note_file_path': return `${VAULT}\\${a.path.replaceAll('/', '\\')}`;
       case 'export_memo_to_obsidian': return 'Niagara/' + (memos.find((m) => m.id === a.id)?.title ?? 'Untitled') + '.md';
       case 'cloze_sources':
         return [
           ...memos.filter((m) => m.body.includes('**') && m.body.includes('#암기')).map((m) => ({ source: `memo:${m.id}`, title: m.title, place: '', blanks: (m.body.match(/\*\*[^*]+\*\*/g) ?? []).length, due: 0, weak: 0, seen: 0 })),
           ...Object.entries(vaultNotes).filter(([, text]) => text.includes('**') && text.includes('#암기')).map(([path, text]) => ({
-            source: `ob:${path}`, title: path.split('/').pop()!.replace(/\.md$/, ''), place: path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '',
+            source: `obx:${VAULT}|${path}`, title: path.split('/').pop()!.replace(/\.md$/, ''), place: 'Vault' + (path.includes('/') ? '/' + path.slice(0, path.lastIndexOf('/')) : ''),
             blanks: (text.match(/\*\*[^*]+\*\*/g) ?? []).length,
-            due: Object.values(cloze).filter((c) => c.key.startsWith(`ob:${path}|`) && c.due <= ymd(new Date())).length,
-            weak: Object.values(cloze).filter((c) => c.key.startsWith(`ob:${path}|`) && !c.last_right).length,
-            seen: Object.values(cloze).filter((c) => c.key.startsWith(`ob:${path}|`)).length,
+            due: Object.values(cloze).filter((c) => c.key.startsWith(`obx:${VAULT}|${path}|`) && c.due <= ymd(new Date())).length,
+            weak: Object.values(cloze).filter((c) => c.key.startsWith(`obx:${VAULT}|${path}|`) && !c.last_right).length,
+            seen: Object.values(cloze).filter((c) => c.key.startsWith(`obx:${VAULT}|${path}|`)).length,
           })),
         ];
       case 'cloze_stats': return Object.values(cloze).filter((c) => c.key.startsWith(`${a.source}|`));
@@ -425,7 +448,7 @@ export function installMock() {
         books.push({ ...a.book, id: nextId, created_at: a.book.created_at || Math.floor(Date.now() / 1000) }); return nextId++;
       }
       case 'delete_book': { const i = books.findIndex((b) => b.id === a.id); return i < 0 ? null : books.splice(i, 1)[0]; }
-      case 'plugin:dialog|save': return '/Users/you/Documents/Nora-backup.nora';
+      case 'plugin:dialog|save': return '/Users/you/Documents/Niagara-backup.nia';
       case 'plugin:dialog|open': return '/Users/you/Documents/Nora-backup.nora';
       case 'export_data':
       case 'inspect_backup':

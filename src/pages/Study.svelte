@@ -4,7 +4,7 @@
   import { onMount, tick } from 'svelte';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
-  import { Brain, ChevronDown, ChevronRight, Eye, EyeOff, Folder, Gem, NotebookPen, RotateCcw, Search } from '@lucide/svelte';
+  import { Brain, ChevronDown, ChevronRight, Eye, EyeOff, Folder, NotebookPen, NotebookText, RotateCcw, Search } from '@lucide/svelte';
   import ConfirmButton from '../components/ConfirmButton.svelte';
   import { api, type ClozeSource, type ClozeStat } from '../lib/api';
   import { clozeHtml, hiddenIn, isDue, isWeak, type BlankState, type StudyMode } from '../lib/cloze';
@@ -81,8 +81,8 @@
         if (!memo) throw new Error(t('study.gone'));
         rendered = DOMPurify.sanitize(marked.parse(memo.body, { async: false, gfm: true, breaks: true }));
       } else {
-        // `ob:<path>` for the vault, `obx:<folder>|<path>` for an extra read folder.
-        const [root, path] = s.source.startsWith('obx:') ? [s.source.slice(4, s.source.indexOf('|')), s.source.slice(s.source.indexOf('|') + 1)] : ['', s.source.slice(3)];
+        // `obx:<note folder>|<path>`.
+        const [root, path] = [s.source.slice(4, s.source.indexOf('|')), s.source.slice(s.source.indexOf('|') + 1)];
         rendered = renderNote(await api.obsidianRead(path, root), t('ob.embed')).html;
       }
       const list = await api.clozeStats(s.source);
@@ -268,7 +268,7 @@
           {#each g.items as s (s.source)}
             <button class="src-item" class:active={current?.source === s.source} onclick={() => open(s)}>
               <span class="s-title">
-                {#if s.source.startsWith('ob')}<Gem size={13} />{:else}<NotebookPen size={13} />{/if}
+                {#if s.source.startsWith('ob')}<NotebookText size={13} />{:else}<NotebookPen size={13} />{/if}
                 <span class="truncate">{s.title || t('common.untitled')}</span>
               </span>
               <span class="s-meta">

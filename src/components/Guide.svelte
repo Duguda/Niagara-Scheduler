@@ -1,19 +1,19 @@
 <script lang="ts">
   // First-run guide in five short steps. Everything here can be changed later in Settings,
   // and the guide itself can be reopened from Settings → About.
-  import { Brain, Check, FolderOpen, FolderTree, Gem, Languages, LayoutGrid } from '@lucide/svelte';
+  import { Brain, Check, FolderOpen, FileText, FolderTree, Languages, LayoutGrid } from '@lucide/svelte';
   import Modal from './Modal.svelte';
   import PageToggles from './PageToggles.svelte';
   import { api } from '../lib/api';
   import { closeGuide } from '../lib/guide.svelte';
   import { i18n, setLocale, t, type Locale } from '../lib/i18n.svelte';
-  import { VAULT_KEY } from '../lib/obsidian';
+  import { folderName, READ_DIRS_KEY, readDirsFrom } from '../lib/obsidian';
   import { ui } from '../lib/state.svelte';
 
   const STEPS = [
     { icon: Languages, title: 'guide.s1Title' },
     { icon: LayoutGrid, title: 'guide.s2Title' },
-    { icon: Gem, title: 'guide.s3Title' },
+    { icon: FileText, title: 'guide.s3Title' },
     { icon: Brain, title: 'guide.s4Title' },
     { icon: FolderTree, title: 'guide.s5Title' },
   ] as const;
@@ -24,21 +24,21 @@
   ];
 
   let step = $state(0);
-  let vault = $state('');
+  let dirs = $state<string[]>([]);
   const last = $derived(step === STEPS.length - 1);
   const Icon = $derived(STEPS[step].icon);
 
-  api.getSetting(VAULT_KEY).then((v) => (vault = v ?? '')).catch(() => {});
+  api.getSetting(READ_DIRS_KEY).then((v) => (dirs = readDirsFrom(v))).catch(() => {});
 
-  async function chooseVault() {
+  async function addFolder() {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog');
       const picked = await open({ directory: true, multiple: false, title: t('ob.pickVault') });
-      if (typeof picked !== 'string') return;
-      await api.setSetting(VAULT_KEY, picked);
-      vault = picked;
+      if (typeof picked !== 'string' || dirs.includes(picked)) return;
+      dirs = [...dirs, picked];
+      await api.setSetting(READ_DIRS_KEY, JSON.stringify(dirs));
     } catch {
-      // No folder dialog (browser preview): the Obsidian page can still connect later.
+      // No folder dialog (browser preview): folders can still be added on the Notes page.
     }
   }
 
@@ -78,8 +78,8 @@
     {:else if step === 2}
       <p>{t('guide.s3Body')}</p>
       <div class="vault">
-        <span class="path small truncate" class:unset={!vault}>{vault || t('store.notSet')}</span>
-        <button class="btn" onclick={chooseVault}><FolderOpen size={15} /> {vault ? t('ob.change') : t('ob.pickVault')}</button>
+        <span class="path small truncate" class:unset={!dirs.length} title={dirs.join('\n')}>{dirs.map(folderName).join(' · ') || t('store.notSet')}</span>
+        <button class="btn" onclick={addFolder}><FolderOpen size={15} /> {dirs.length ? t('ob.addReadDir') : t('ob.pickVault')}</button>
       </div>
       <p class="faint small">{t('guide.s3Later')}</p>
     {:else if step === 3}

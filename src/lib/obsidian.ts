@@ -5,19 +5,38 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
-export const VAULT_KEY = 'obsidian.vault';
-export const EXPORT_DIR_KEY = 'obsidian.exportDir';
-export const DEFAULT_EXPORT_DIR = 'Niagara';
-/** Extra folders the Notes page reads besides the vault (JSON list of paths). */
+/** The note folders the Notes page reads and edits (JSON list of absolute paths). */
 export const READ_DIRS_KEY = 'notes.readDirs';
-/** '0' turns off saving memos into the vault automatically. */
-export const AUTO_SAVE_KEY = 'notes.autoSave';
+/** Where "Send to notes" on a memo saves its copy (absolute path). */
+export const MEMO_DIR_KEY = 'notes.memoDir';
 
-/** Where a note is listed: the vault folder, or `<folder name>/<sub-folder>` for an extra folder. */
+export function readDirsFrom(json: string | null): string[] {
+  try {
+    const v = JSON.parse(json ?? '[]');
+    return Array.isArray(v) ? v.filter((d): d is string => typeof d === 'string' && d.trim() !== '') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Last part of a folder path, which is how a note folder is named in lists. */
+export function folderName(path: string): string {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+}
+
+/** Where a note is listed: `<note folder name>/<sub-folder>`. */
 export function noteFolder(n: { root: string; folder: string }): string {
   if (!n.root) return n.folder;
-  const name = n.root.split(/[\\/]/).filter(Boolean).pop() ?? n.root;
+  const name = folderName(n.root);
   return n.folder ? `${name}/${n.folder}` : name;
+}
+
+export const isPlainText = (path: string) => /\.txt$/i.test(path);
+
+/** A .txt note shown exactly as typed. */
+export function renderPlain(text: string): string {
+  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return `<pre class="plain-note">${escaped}</pre>`;
 }
 
 /** Links to other notes carry this prefix in their href; the page handles the click. */

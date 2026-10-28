@@ -1,22 +1,35 @@
 <script lang="ts">
-  // Obsidian notes: read the user's vault here (read-only). Links between notes work, and the
-  // note can be opened in Obsidian. Memos are sent the other way from the Memos page.
+  // Notes: the .md and .txt files in the user's note folders (an Obsidian vault is one of them).
+  // Read them with links between notes working, edit them, create new ones, and switch a note
+  // between plain text (.txt) and Markdown (.md). Memos are a separate thing kept in Niagara.
   import { open as pickFolder } from '@tauri-apps/plugin-dialog';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import { ArrowLeft, ExternalLink, FolderOpen, Gem, RefreshCw, Search, Settings2, Unplug } from '@lucide/svelte';
+  import { ArrowLeft, Check, FileText, FolderOpen, NotebookText, Pencil, Plus, RefreshCw, Search, Settings2 } from '@lucide/svelte';
   import Modal from '../components/Modal.svelte';
   import Select from '../components/Select.svelte';
   import { api, type NoteMeta } from '../lib/api';
   import { fmtTs } from '../lib/dates';
   import { t } from '../lib/i18n.svelte';
-  import { AUTO_SAVE_KEY, DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, noteFolder, noteLinkTarget, READ_DIRS_KEY, renderNote, resolveWikiLink, VAULT_KEY, WIKI_PREFIX } from '../lib/obsidian';
+  import {
+    folderName,
+    isPlainText,
+    MEMO_DIR_KEY,
+    noteFolder,
+    noteLinkTarget,
+    READ_DIRS_KEY,
+    readDirsFrom,
+    renderNote,
+    renderPlain,
+    resolveWikiLink,
+    WIKI_PREFIX,
+  } from '../lib/obsidian';
   import { toast } from '../lib/state.svelte';
 
   /** Long lists are cut here; search narrows them. */
   const LIST_LIMIT = 300;
 
-  let vault = $state<string | null>(null);
-  let exportDir = $state(DEFAULT_EXPORT_DIR);
+  let dirs = $state<string[]>([]);
+  let memoDir = $state('');
   let ready = $state(false);
   let notes = $state<NoteMeta[]>([]);
   let loading = $state(false);
@@ -28,9 +41,20 @@
   /** Notes visited through links, for Back. */
   let history = $state<NoteMeta[]>([]);
   let settingsOpen = $state(false);
-  let draftDir = $state('');
-  let readDirs = $state<string[]>([]);
-  let autoSave = $state(true);
+
+  /** The note's text as loaded, and the editor's text while editing. */
+  let text = $state('');
+  let draft = $state('');
+  let editing = $state(false);
+  let saving = $state(false);
+  /** The file's modified time when it was loaded, so edits made elsewhere are not overwritten. */
+  let loadedAt = $state<number | null>(null);
+  const dirty = $derived(editing && draft !== text);
+
+  let newOpen = $state(false);
+  let newRoot = $state('');
+  let newSub = $state('');
+  let newTitle = $state('');
 
   const topFolder = (n: NoteMeta) => noteFolder(n).split('/')[0];
   const noteKey = (n: NoteMeta) => `${n.root}|${n.path}`;
@@ -39,6 +63,7 @@
     { value: '', label: t('ob.allFolders') },
     ...folders.map((f) => ({ value: f || '/', label: f || t('ob.root') })),
   ]);
+  const dirOptions = $derived(dirs.map((d) => ({ value: d, label: folderName(d) })));
   const filtered = $derived.by(() => {
     const q = search.trim().toLowerCase();
     return notes.filter(
@@ -48,16 +73,10 @@
   const shown = $derived(filtered.slice(0, LIST_LIMIT));
 
   async function init() {
-    vault = (await api.getSetting(VAULT_KEY).catch(() => null)) || null;
-    exportDir = (await api.getSetting(EXPORT_DIR_KEY).catch(() => null)) || DEFAULT_EXPORT_DIR;
-    try {
-      readDirs = JSON.parse((await api.getSetting(READ_DIRS_KEY).catch(() => null)) ?? '[]');
-    } catch {
-      readDirs = [];
-    }
-    autoSave = (await api.getSetting(AUTO_SAVE_KEY).catch(() => null)) !== '0';
+    dirs = readDirsFrom(await api.getSetting(READ_DIRS_KEY).catch(() => null));
+    memoDir = (await api.getSetting(MEMO_DIR_KEY).catch(() => null)) ?? '';
     ready = true;
-    if (vault) await refresh();
+    if (dirs.length) await refresh();
   }
   init();
 
@@ -73,61 +92,56 @@
     }
   }
 
-  async function chooseVault() {
+  async function saveDirs(next: string[]) {
+    dirs = next;
+    await api.setSetting(READ_DIRS_KEY, JSON.stringify(next));
+    if (current && !next.includes(current.root)) closeNote();
+    if (next.length) await refresh();
+    else notes = [];
+  }
+
+  async function addDir() {
     const picked = await pickFolder({ directory: true, multiple: false, title: t('ob.pickVault') }).catch(() => null);
+    if (typeof picked !== 'string' || dirs.includes(picked)) return;
+    await saveDirs([...dirs, picked]);
+  }
+
+  async function chooseMemoDir() {
+    const picked = await pickFolder({ directory: true, multiple: false, title: t('ob.memoDir') }).catch(() => null);
     if (typeof picked !== 'string') return;
-    await api.setSetting(VAULT_KEY, picked);
-    vault = picked;
-    current = null;
-    history = [];
-    folder = '';
-    await refresh();
+    memoDir = picked;
+    await api.setSetting(MEMO_DIR_KEY, picked);
   }
 
-  async function disconnect() {
-    await api.setSetting(VAULT_KEY, '');
-    vault = null;
-    notes = [];
+  function closeNote() {
     current = null;
     history = [];
-    settingsOpen = false;
+    editing = false;
   }
 
-  async function saveSettings() {
-    const dir = draftDir.trim().replace(/^\/+|\/+$/g, '') || DEFAULT_EXPORT_DIR;
-    if (dir.split('/').some((part) => part === '..' || part === '.')) return toast(t('ob.badFolder'), 'error');
-    await api.setSetting(EXPORT_DIR_KEY, dir);
-    exportDir = dir;
-    settingsOpen = false;
+  function show(n: NoteMeta, body: string) {
+    text = body;
+    if (isPlainText(n.path)) {
+      html = renderPlain(body);
+      tags = [];
+    } else {
+      const rendered = renderNote(body, t('ob.embed'));
+      html = rendered.html;
+      tags = rendered.tags;
+    }
   }
 
   /** `list`: picked in the list (history restarts) · `link`: followed a link · `back`: Back button. */
-  async function saveReadDirs(dirs: string[]) {
-    readDirs = dirs;
-    await api.setSetting(READ_DIRS_KEY, JSON.stringify(dirs));
-    await refresh();
-  }
-
-  async function addReadDir() {
-    const picked = await pickFolder({ directory: true, multiple: false, title: t('ob.addReadDir') }).catch(() => null);
-    if (typeof picked !== 'string' || picked === vault || readDirs.includes(picked)) return;
-    await saveReadDirs([...readDirs, picked]);
-  }
-
-  async function setAutoSave(on: boolean) {
-    autoSave = on;
-    await api.setSetting(AUTO_SAVE_KEY, on ? '1' : '0');
-  }
-
   async function openNote(n: NoteMeta, how: 'list' | 'link' | 'back' = 'list') {
+    if (!(await saveIfDirty())) return;
     try {
-      const text = await api.obsidianRead(n.path, n.root);
-      const rendered = renderNote(text, t('ob.embed'));
+      const body = await api.obsidianRead(n.path, n.root);
       if (how === 'link' && current) history = [...history, current];
       if (how === 'list') history = [];
       current = n;
-      html = rendered.html;
-      tags = rendered.tags;
+      loadedAt = n.modified;
+      editing = false;
+      show(n, body);
     } catch (e) {
       toast(String(e), 'error');
     }
@@ -140,10 +154,102 @@
     openNote(prev, 'back');
   }
 
-  async function openInObsidian() {
+  function startEdit() {
+    draft = text;
+    editing = true;
+  }
+
+  /** Saves the editor's text. Returns false when it could not be saved (so nothing is lost). */
+  async function save(): Promise<boolean> {
+    if (!current || saving) return false;
+    saving = true;
+    try {
+      const modified = await api.noteWrite(current.root, current.path, draft, loadedAt);
+      loadedAt = modified;
+      const updated = { ...current, modified };
+      notes = notes.map((n) => (noteKey(n) === noteKey(updated) ? updated : n));
+      current = updated;
+      show(updated, draft);
+      return true;
+    } catch (e) {
+      toast(String(e) === 'changed' ? t('ob.changedOutside') : String(e), 'error');
+      return false;
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function saveIfDirty(): Promise<boolean> {
+    return !dirty || (await save());
+  }
+
+  async function finishEdit() {
+    if (dirty && !(await save())) return;
+    editing = false;
+  }
+
+  async function reload() {
+    if (!current) return;
+    editing = false;
+    await refresh();
+    const fresh = notes.find((n) => current && noteKey(n) === noteKey(current));
+    if (fresh) await openNote(fresh, 'back');
+  }
+
+  function editorKey(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      save().then((ok) => ok && toast(t('ob.saved'), 'success'));
+    }
+  }
+
+  /** .txt ↔ .md: only the file's extension changes. */
+  async function convert() {
+    if (!current || !(await saveIfDirty())) return;
+    try {
+      const path = await api.noteConvert(current.root, current.path);
+      const name = path.split('/').pop() ?? path;
+      toast(t('ob.converted', { name }), 'success');
+      const old = noteKey(current);
+      const moved: NoteMeta = { ...current, path };
+      notes = notes.map((n) => (noteKey(n) === old ? moved : n));
+      current = moved;
+      show(moved, editing ? draft : text);
+    } catch (e) {
+      const ext = isPlainText(current.path) ? '.md' : '.txt';
+      const name = (current.path.split('/').pop() ?? '').replace(/\.[^.]+$/, ext);
+      toast(String(e) === 'exists' ? t('ob.convertExists', { name }) : String(e), 'error');
+    }
+  }
+
+  async function showInFolder() {
     if (!current) return;
     try {
-      await openUrl(await api.obsidianOpenUrl(current.path, current.root));
+      const { revealItemInDir } = await import('@tauri-apps/plugin-opener');
+      await revealItemInDir(await api.noteFilePath(current.path, current.root));
+    } catch (e) {
+      toast(String(e), 'error');
+    }
+  }
+
+  function openNew() {
+    newRoot = current?.root ?? dirs[0] ?? '';
+    newSub = current?.folder ?? '';
+    newTitle = '';
+    newOpen = true;
+  }
+
+  async function createNote() {
+    if (!newRoot || !(await saveIfDirty())) return;
+    try {
+      const path = await api.noteCreate(newRoot, newSub, newTitle.trim() || t('common.untitled'));
+      newOpen = false;
+      await refresh();
+      const made = notes.find((n) => n.root === newRoot && n.path === path);
+      if (made) {
+        await openNote(made);
+        startEdit();
+      }
     } catch (e) {
       toast(String(e), 'error');
     }
@@ -170,13 +276,13 @@
 
 {#if !ready}
   <div></div>
-{:else if !vault}
+{:else if !dirs.length}
   <div class="connect">
     <div class="empty">
-      <span class="empty-icon"><Gem size={30} /></span>
+      <span class="empty-icon"><FileText size={30} /></span>
       <h2>{t('ob.connectTitle')}</h2>
       <p>{t('ob.connectBody')}</p>
-      <button class="btn primary" onclick={chooseVault}><FolderOpen size={17} /> {t('ob.pickVault')}</button>
+      <button class="btn primary" onclick={addDir}><FolderOpen size={17} /> {t('ob.pickVault')}</button>
     </div>
   </div>
 {:else}
@@ -185,15 +291,16 @@
       <div class="list-head">
         <h1>{t('ob.title')}</h1>
         <div class="head-actions">
+          <button class="icon-btn" onclick={openNew} title={t('ob.new')} aria-label={t('ob.new')}><Plus size={17} /></button>
           <button class="icon-btn" onclick={refresh} title={t('ob.refresh')} aria-label={t('ob.refresh')} disabled={loading}>
             <span class:spin={loading}><RefreshCw size={16} /></span>
           </button>
-          <button class="icon-btn" onclick={() => { draftDir = exportDir; settingsOpen = true; }} title={t('ob.settings')} aria-label={t('ob.settings')}>
+          <button class="icon-btn" onclick={() => (settingsOpen = true)} title={t('ob.settings')} aria-label={t('ob.settings')}>
             <Settings2 size={16} />
           </button>
         </div>
       </div>
-      <p class="vault faint small truncate" title={vault}>{vault} · {t('ob.count', { n: notes.length })}</p>
+      <p class="vault faint small truncate" title={dirs.join('\n')}>{dirs.map(folderName).join(' · ')} · {t('ob.count', { n: notes.length })}</p>
 
       <div class="filters">
         <Select bind:value={folder} options={folderOptions} label={t('ob.allFolders')} />
@@ -206,7 +313,7 @@
       <div class="list">
         {#each shown as n (noteKey(n))}
           <button class="note-item" class:active={current !== null && noteKey(current) === noteKey(n)} onclick={() => openNote(n)}>
-            <span class="n-title truncate">{n.title}</span>
+            <span class="n-title truncate">{n.title}{#if isPlainText(n.path)}<span class="ext">.txt</span>{/if}</span>
             <span class="n-meta truncate">{noteFolder(n) || t('ob.root')} · {fmtTs(n.modified, { month: 'short', day: 'numeric' })}</span>
           </button>
         {:else}
@@ -221,7 +328,7 @@
     <section class="reader">
       {#if !current}
         <div class="empty">
-          <span class="empty-icon"><Gem size={30} /></span>
+          <span class="empty-icon"><NotebookText size={30} /></span>
           <h2>{t('ob.pickNote')}</h2>
           <p>{t('ob.pickNoteBody')}</p>
         </div>
@@ -231,60 +338,88 @@
             <button class="icon-btn" onclick={back} title={t('ob.back')} aria-label={t('ob.back')}><ArrowLeft size={18} /></button>
           {/if}
           <h1 class="title-view truncate">{current.title}</h1>
-          <span class="badge faint small">{t('ob.readOnly')}</span>
-          <button class="btn" onclick={openInObsidian}><ExternalLink size={15} /> {t('ob.openInObsidian')}</button>
+          {#if isPlainText(current.path)}<span class="badge faint small">{t('ob.plain')}</span>{/if}
+          <button
+            class="btn ghost small"
+            onclick={convert}
+            title={isPlainText(current.path) ? t('ob.toMarkdownHint') : t('ob.toTextHint')}
+          >
+            <FileText size={15} /> {isPlainText(current.path) ? t('ob.toMarkdown') : t('ob.toText')}
+          </button>
+          <button class="icon-btn" onclick={showInFolder} title={t('ob.showInFolder')} aria-label={t('ob.showInFolder')}><FolderOpen size={17} /></button>
+          {#if editing}
+            <button class="btn primary" onclick={finishEdit} disabled={saving}><Check size={15} /> {t('ob.view')}</button>
+          {:else}
+            <button class="btn" onclick={startEdit}><Pencil size={15} /> {t('ob.edit')}</button>
+          {/if}
         </div>
         <p class="status faint small truncate">
           {noteFolder(current) || t('ob.root')} · {t('ob.modified', { date: fmtTs(current.modified, { dateStyle: 'medium', timeStyle: 'short' }) })}
+          {#if editing}<span class="hint">· {t('ob.editHint')}</span>{/if}
           {#each tags as tag (tag)}<span class="tag">#{tag}</span>{/each}
+          <button class="link-btn small" onclick={reload}>{t('ob.reload')}</button>
         </p>
         <div class="box">
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div class="scroll prose reading" onclick={readerClick}>{@html html}</div>
+          {#if editing}
+            <textarea class="editor" bind:value={draft} onkeydown={editorKey} spellcheck="false" aria-label={current.title}></textarea>
+          {:else}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div class="scroll prose reading" onclick={readerClick}>{@html html}</div>
+          {/if}
         </div>
       {/if}
     </section>
   </div>
 {/if}
 
-{#if settingsOpen && vault}
-  <Modal title={t('ob.settings')} onclose={() => (settingsOpen = false)} width={460}>
-    <div class="field">
-      <span class="label">{t('ob.vaultPath')}</span>
-      <div class="vault-row">
-        <span class="path small truncate" title={vault}>{vault}</span>
-        <button class="btn small" onclick={() => { settingsOpen = false; chooseVault(); }}>{t('ob.change')}</button>
-      </div>
-    </div>
+{#if settingsOpen}
+  <Modal title={t('ob.settings')} onclose={() => (settingsOpen = false)} width={480}>
     <div class="field">
       <span class="label">{t('ob.readDirs')}</span>
       <span class="faint small">{t('ob.readDirsHint')}</span>
-      {#each readDirs as dir, i (dir)}
+      {#each dirs as dir, i (dir)}
         <div class="vault-row">
           <span class="path small truncate" title={dir}>{dir}</span>
-          <button class="btn small ghost" onclick={() => saveReadDirs(readDirs.filter((_, j) => j !== i))}>{t('ob.removeReadDir')}</button>
+          <button class="btn small ghost" onclick={() => saveDirs(dirs.filter((_, j) => j !== i))}>{t('ob.removeReadDir')}</button>
         </div>
       {/each}
-      <button class="btn small add-dir" onclick={addReadDir}><FolderOpen size={14} /> {t('ob.addReadDir')}</button>
+      <button class="btn small add-dir" onclick={addDir}><FolderOpen size={14} /> {t('ob.addReadDir')}</button>
     </div>
-    <label class="auto-save">
-      <input type="checkbox" class="switch" checked={autoSave} onchange={(e) => setAutoSave(e.currentTarget.checked)} />
-      <span>
-        <span class="strong small">{t('ob.autoSave')}</span>
-        <span class="faint small">{t('ob.autoSaveHint')}</span>
-      </span>
-    </label>
     <div class="field">
-      <label for="ob-export-dir">{t('ob.exportDir')}</label>
-      <input id="ob-export-dir" class="input" bind:value={draftDir} placeholder={DEFAULT_EXPORT_DIR} />
-      <span class="faint small">{t('ob.exportDirHint')}</span>
+      <span class="label">{t('ob.memoDir')}</span>
+      <span class="faint small">{t('ob.memoDirHint')}</span>
+      <div class="vault-row">
+        <span class="path small truncate" class:unset={!memoDir} title={memoDir}>{memoDir || t('ob.memoDirNone')}</span>
+        <button class="btn small" onclick={chooseMemoDir}><Pencil size={14} /> {t('ob.pickMemoDir')}</button>
+      </div>
     </div>
     {#snippet footer()}
-      <button class="btn ghost danger-text" onclick={disconnect}><Unplug size={15} /> {t('ob.disconnect')}</button>
       <span class="spacer"></span>
-      <button class="btn ghost" onclick={() => (settingsOpen = false)}>{t('common.cancel')}</button>
-      <button class="btn primary" onclick={saveSettings}>{t('common.save')}</button>
+      <button class="btn primary" onclick={() => (settingsOpen = false)}>{t('common.close')}</button>
+    {/snippet}
+  </Modal>
+{/if}
+
+{#if newOpen}
+  <Modal title={t('ob.new')} onclose={() => (newOpen = false)} width={420}>
+    <div class="field">
+      <span class="label">{t('ob.newFolder')}</span>
+      <Select bind:value={newRoot} options={dirOptions} label={t('ob.newFolder')} />
+    </div>
+    <div class="field">
+      <label for="note-sub">{t('ob.newSub')}</label>
+      <input id="note-sub" class="input" bind:value={newSub} placeholder="10 Study" />
+    </div>
+    <div class="field">
+      <label for="note-title">{t('ob.newTitle')}</label>
+      <!-- svelte-ignore a11y_autofocus -->
+      <input id="note-title" class="input" bind:value={newTitle} autofocus onkeydown={(e) => e.key === 'Enter' && createNote()} />
+    </div>
+    {#snippet footer()}
+      <span class="spacer"></span>
+      <button class="btn ghost" onclick={() => (newOpen = false)}>{t('common.cancel')}</button>
+      <button class="btn primary" onclick={createNote}><Plus size={15} /> {t('ob.create')}</button>
     {/snippet}
   </Modal>
 {/if}
@@ -448,17 +583,46 @@
   .add-dir {
     align-self: flex-start;
   }
-  .auto-save {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin: 4px 0 14px;
+  .ext {
+    margin-left: 4px;
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--faint);
+  }
+  .hint {
+    margin-left: 6px;
+  }
+  .link-btn {
+    margin-left: 10px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--primary);
     cursor: pointer;
   }
-  .auto-save > span {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+  .editor {
+    flex: 1;
+    min-width: 0;
+    padding: 22px 28px;
+    border: 0;
+    outline: none;
+    resize: none;
+    background: transparent;
+    color: inherit;
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.7;
+    tab-size: 2;
+  }
+  .reading :global(.plain-note) {
+    margin: 0;
+    font-family: inherit;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .path.unset {
+    font-family: inherit;
+    color: var(--faint);
   }
   .vault-row {
     display: flex;
@@ -472,9 +636,6 @@
     border-radius: var(--radius);
     background: var(--surface-2);
     font-family: var(--mono);
-  }
-  .danger-text {
-    color: var(--danger, #e05252);
   }
   .spin {
     display: inline-flex;

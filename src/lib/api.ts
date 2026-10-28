@@ -254,7 +254,7 @@ export interface BackupManifest {
 
 /** A note or memo with **bold** text to study (see src-tauri/src/cloze.rs). */
 export interface ClozeSource {
-  /** `ob:<vault path>` or `memo:<id>`. */
+  /** `obx:<note folder>|<path>` or `memo:<id>`. */
   source: string;
   title: string;
   /** Note folder or memo group ('' when none). */
@@ -287,11 +287,11 @@ export interface StorageInfo {
   portable: boolean;
 }
 
-/** A Markdown note in the Obsidian vault (see src-tauri/src/obsidian.rs). */
+/** A .md or .txt note in a note folder (see src-tauri/src/obsidian.rs). */
 export interface NoteMeta {
-  /** Read folder: '' for the vault, otherwise that folder's path. */
+  /** The note folder (its path) the note was found in. */
   root: string;
-  /** Path inside the vault, `/`-separated. */
+  /** Path inside the note folder, `/`-separated. */
   path: string;
   title: string;
   folder: string;
@@ -444,8 +444,12 @@ export const api = {
   deleteBook: (id: number) => invoke<Book | null>('delete_book', { id }),
 
   obsidianNotes: () => invoke<NoteMeta[]>('obsidian_notes'),
-  obsidianRead: (path: string, root = '') => invoke<string>('obsidian_read', { path, root }),
-  obsidianOpenUrl: (path: string, root = '') => invoke<string>('obsidian_open_url', { path, root }),
+  obsidianRead: (path: string, root: string) => invoke<string>('obsidian_read', { path, root }),
+  noteFilePath: (path: string, root: string) => invoke<string>('note_file_path', { path, root }),
+  noteWrite: (root: string, path: string, text: string, expectedModified: number | null) =>
+    invoke<number>('note_write', { root, path, text, expectedModified }),
+  noteCreate: (root: string, folder: string, title: string) => invoke<string>('note_create', { root, folder, title }),
+  noteConvert: (root: string, path: string) => invoke<string>('note_convert', { root, path }),
   exportMemoToObsidian: (id: number) => invoke<string>('export_memo_to_obsidian', { id }),
   refreshBrief: () => invoke<string>('refresh_brief'),
   storageInfo: () => invoke<StorageInfo>('storage_info'),

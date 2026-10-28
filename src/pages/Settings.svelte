@@ -12,7 +12,7 @@
   import PageToggles from '../components/PageToggles.svelte';
   import { openGuide } from '../lib/guide.svelte';
   import { api, type BackupManifest, type StorageInfo } from '../lib/api';
-  import { DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, VAULT_KEY } from '../lib/obsidian';
+  import { folderName, MEMO_DIR_KEY, READ_DIRS_KEY, readDirsFrom } from '../lib/obsidian';
   import { setDecorating, stickers } from '../lib/stickers.svelte';
   import { backupError, exportBackup, pickBackup } from '../lib/backup';
   import { fmtTs } from '../lib/dates';
@@ -95,8 +95,8 @@
 
   // Where Niagara keeps things (src-tauri/src/storage.rs), plus the Obsidian folders from the Notes page.
   let storage = $state<StorageInfo | null>(null);
-  let vaultDir = $state('');
-  let exportDir = $state('');
+  let noteDirs = $state<string[]>([]);
+  let memoDir = $state('');
   async function refreshBrief(announce: boolean) {
     try {
       await api.refreshBrief();
@@ -116,8 +116,8 @@
   onMount(async () => {
     refreshBrief(false);
     storage = await api.storageInfo().catch(() => null);
-    vaultDir = (await api.getSetting(VAULT_KEY).catch(() => null)) ?? '';
-    exportDir = (await api.getSetting(EXPORT_DIR_KEY).catch(() => null)) || DEFAULT_EXPORT_DIR;
+    noteDirs = readDirsFrom(await api.getSetting(READ_DIRS_KEY).catch(() => null));
+    memoDir = (await api.getSetting(MEMO_DIR_KEY).catch(() => null)) ?? '';
   });
 
   async function saveCurrent() {
@@ -579,16 +579,16 @@
             <span class="strong small">{t('store.notes')}</span>
             <span class="muted small">{t('store.notesHint')}</span>
           </div>
-          <span class="brief-path small truncate" class:unset={!vaultDir} title={vaultDir}>{vaultDir || t('store.notSet')}</span>
+          <span class="brief-path small truncate" class:unset={!noteDirs.length} title={noteDirs.join('\n')}>{noteDirs.map(folderName).join(' · ') || t('store.notSet')}</span>
           <button class="btn small" onclick={() => (ui.page = 'notes')}><Pencil size={14} /> {t('store.change')}</button>
         </div>
-        {#if vaultDir}
+        {#if memoDir}
           <div class="store-row">
             <div class="store-text">
               <span class="strong small">{t('store.export')}</span>
               <span class="muted small">{t('store.exportHint')}</span>
             </div>
-            <span class="brief-path small truncate" title={exportDir}>{exportDir}</span>
+            <span class="brief-path small truncate" title={memoDir}>{memoDir}</span>
             <button class="btn small" onclick={() => (ui.page = 'notes')}><Pencil size={14} /> {t('store.change')}</button>
           </div>
         {/if}

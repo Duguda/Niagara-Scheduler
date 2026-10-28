@@ -614,7 +614,9 @@ impl Db {
         let conn = open_conn(path)?;
         conn.execute_batch(SCHEMA)?;
         migrate(&conn)?;
-        Ok(Self { conn })
+        let db = Self { conn };
+        db.migrate_vault_to_note_folders()?;
+        Ok(db)
     }
 
     // ---- settings ---------------------------------------------------------
@@ -627,6 +629,33 @@ impl Db {
 
     pub fn setting_or<T: std::str::FromStr>(&self, key: &str, default: T) -> T {
         self.setting(key).ok().flatten().and_then(|v| v.parse().ok()).unwrap_or(default)
+    }
+
+    /// Before 0.11 the Obsidian vault was a setting of its own. Now it is one note folder among
+    /// others: it joins the folder list, its recall records (`ob:<path>`) take the folders' key
+    /// form (`obx:<folder>|<path>`), and memos keep going to `<vault>/<export dir>`.
+    fn migrate_vault_to_note_folders(&self) -> DbResult<()> {
+        use crate::obsidian::{DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, MEMO_DIR_KEY, READ_DIRS_KEY, VAULT_KEY};
+        let Some(vault) = self.setting(VAULT_KEY)?.map(|v| v.trim().to_string()).filter(|v| !v.is_empty()) else {
+            return Ok(());
+        };
+        let mut dirs = crate::obsidian::parse_read_dirs(self.setting(READ_DIRS_KEY)?.as_deref());
+        if !dirs.contains(&vault) {
+            dirs.insert(0, vault.clone());
+        }
+        let export = self.setting(EXPORT_DIR_KEY)?.filter(|d| !d.trim().is_empty()).unwrap_or_else(|| DEFAULT_EXPORT_DIR.into());
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "UPDATE OR IGNORE cloze_stats SET key = ?1 || substr(key, 4), source = ?1 || substr(source, 4) WHERE source LIKE 'ob:%'",
+            [format!("obx:{vault}|")],
+        )?;
+        drop(tx.commit());
+        if self.setting(MEMO_DIR_KEY)?.is_none() {
+            let memo_dir = Path::new(&vault).join(export.trim_matches('/'));
+            self.set_setting(MEMO_DIR_KEY, &memo_dir.to_string_lossy())?;
+        }
+        self.set_setting(READ_DIRS_KEY, &serde_json::to_string(&dirs).unwrap_or_default())?;
+        self.set_setting(VAULT_KEY, "")
     }
 
     pub fn set_setting(&self, key: &str, value: &str) -> DbResult<()> {
@@ -1193,6 +1222,24 @@ pub(crate) mod tests {
         let path = std::env::temp_dir().join(format!("nora_test_{}_{n}.sqlite3", std::process::id()));
         let _ = std::fs::remove_file(&path);
         (Db::open(&path).unwrap(), path)
+    }
+
+    #[test]
+    fn old_vault_setting_becomes_a_note_folder() {
+        let (db, path) = temp_db();
+        db.set_setting("obsidian.vault", "D:/Vault").unwrap();
+        db.set_setting("notes.readDirs", r#"["D:/Other"]"#).unwrap();
+        db.conn
+            .execute("INSERT INTO cloze_stats (key, source, due, updated_at) VALUES ('ob:a.md|x|0', 'ob:a.md', '2026-01-01', 0)", [])
+            .unwrap();
+        drop(db);
+        let db = Db::open(&path).unwrap();
+        assert_eq!(db.setting("notes.readDirs").unwrap().as_deref(), Some(r#"["D:/Vault","D:/Other"]"#));
+        assert_eq!(db.setting("obsidian.vault").unwrap().as_deref(), Some(""));
+        assert!(db.setting("notes.memoDir").unwrap().unwrap().ends_with("Niagara"));
+        let key: String = db.conn.query_row("SELECT key FROM cloze_stats", [], |r| r.get(0)).unwrap();
+        assert_eq!(key, "obx:D:/Vault|a.md|x|0");
+        let _ = std::fs::remove_file(path);
     }
 
     pub(crate) fn d(s: &str) -> NaiveDate {

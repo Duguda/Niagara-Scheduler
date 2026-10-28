@@ -5,7 +5,9 @@ import { today } from './dates';
 import { t } from './i18n.svelte';
 import { toast } from './state.svelte';
 
-const filters = () => [{ name: t('data.fileType'), extensions: ['nora', 'zip'] }];
+/** Niagara writes `.nia`; it still opens `.nora` backups from Nora Schedule (same zip format). */
+const saveFilters = () => [{ name: t('data.fileType'), extensions: ['nia'] }];
+const openFilters = () => [{ name: t('data.fileType'), extensions: ['nia', 'nora', 'zip'] }];
 
 /** Turns backend error codes into friendly messages. */
 export function backupError(e: unknown): string {
@@ -17,7 +19,7 @@ export function backupError(e: unknown): string {
 
 /** Asks where to save, then writes the backup. Returns false if cancelled or failed. */
 export async function exportBackup(): Promise<boolean> {
-  const path = await save({ defaultPath: `Niagara-backup-${today()}.nora`, filters: filters() }).catch(() => null);
+  const path = await save({ defaultPath: `Niagara-backup-${today()}.nia`, filters: saveFilters() }).catch(() => null);
   if (!path) return false;
   try {
     await api.exportData(path);
@@ -31,7 +33,7 @@ export async function exportBackup(): Promise<boolean> {
 
 /** Lets the user pick a backup file and reads its summary. */
 export async function pickBackup(): Promise<{ path: string; manifest: BackupManifest } | null> {
-  const picked = await open({ multiple: false, directory: false, filters: filters() }).catch(() => null);
+  const picked = await open({ multiple: false, directory: false, filters: openFilters() }).catch(() => null);
   const path = typeof picked === 'string' ? picked : null;
   if (!path) return null;
   try {

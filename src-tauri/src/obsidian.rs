@@ -11,15 +11,15 @@ use std::path::{Component, Path, PathBuf};
 use chrono::{Local, TimeZone};
 use serde::Serialize;
 
-/// Setting that stores the vault folder (absolute path).
+/// Setting from before 0.11 that stored the Obsidian vault; it now moves into the note folders.
 pub const VAULT_KEY: &str = "obsidian.vault";
 /// Setting that stores the vault-relative folder memos are written to.
 pub const EXPORT_DIR_KEY: &str = "obsidian.exportDir";
 pub const DEFAULT_EXPORT_DIR: &str = "Niagara";
-/// Setting: extra folders the Notes page reads (JSON list of absolute paths), besides the vault.
+/// Setting: the note folders the Notes page reads and edits (JSON list of absolute paths).
 pub const READ_DIRS_KEY: &str = "notes.readDirs";
-/// Setting: `"0"` turns off saving memos into the vault automatically.
-pub const AUTO_SAVE_KEY: &str = "notes.autoSave";
+/// Setting: the note folder a memo is sent to with "Send to notes" (absolute path).
+pub const MEMO_DIR_KEY: &str = "notes.memoDir";
 
 pub fn parse_read_dirs(json: Option<&str>) -> Vec<String> {
     json.and_then(|j| serde_json::from_str::<Vec<String>>(j).ok())
@@ -45,7 +45,7 @@ const MEMO_KEY: &str = "niagara_memo";
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct NoteMeta {
-    /// Which read folder the note is in: `""` for the vault, otherwise that folder's path.
+    /// The note folder it was found in (that folder's path).
     pub root: String,
     /// Path inside the vault with `/` separators, e.g. `10 공부/SQL.md`.
     pub path: String,
@@ -65,6 +65,11 @@ fn skipped_dir(name: &str) -> bool {
 
 fn is_markdown(path: &Path) -> bool {
     path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("md"))
+}
+
+/// Notes Niagara can read: Markdown (`.md`) and plain text (`.txt`).
+fn is_note(path: &Path) -> bool {
+    path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("txt"))
 }
 
 fn rel_string(rel: &Path) -> String {
@@ -94,7 +99,7 @@ pub fn list(root: &Path) -> io::Result<Vec<NoteMeta>> {
                 if !skipped_dir(&name) {
                     stack.push(path);
                 }
-            } else if kind.is_file() && is_markdown(&path) {
+            } else if kind.is_file() && is_note(&path) {
                 let Ok(meta) = entry.metadata() else { continue };
                 let Ok(rel) = path.strip_prefix(root) else { continue };
                 let rel_path = rel_string(rel);
@@ -133,8 +138,8 @@ fn resolve(root: &Path, rel: &str) -> Result<PathBuf, String> {
 /// The text of one note.
 pub fn read(root: &Path, rel: &str) -> Result<String, String> {
     let path = resolve(root, rel)?;
-    if !is_markdown(&path) {
-        return Err("not a Markdown note".into());
+    if !is_note(&path) {
+        return Err("not a note".into());
     }
     let size = fs::metadata(&path).map_err(|e| e.to_string())?.len();
     if size > MAX_NOTE_BYTES {
@@ -148,7 +153,7 @@ pub fn read(root: &Path, rel: &str) -> Result<String, String> {
 pub fn study_notes(root: &Path) -> io::Result<Vec<(NoteMeta, usize)>> {
     Ok(list(root)?
         .into_iter()
-        .filter(|n| n.size <= MAX_NOTE_BYTES)
+        .filter(|n| n.size <= MAX_NOTE_BYTES && n.path.to_ascii_lowercase().ends_with(".md"))
         .filter_map(|n| {
             let text = fs::read(root.join(&n.path)).ok()?;
             let text = String::from_utf8_lossy(&text);
@@ -160,6 +165,72 @@ pub fn study_notes(root: &Path) -> io::Result<Vec<(NoteMeta, usize)>> {
             (count > 0).then_some((n, count))
         })
         .collect())
+}
+
+/// Last-modified time (Unix seconds) of a file, 0 when unknown.
+fn modified_secs(path: &Path) -> i64 {
+    fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// Saves a note's text. `expected_modified` is the time the editor loaded it: if the file changed
+/// since (edited in another program), nothing is written and `Err("changed")` comes back.
+/// Returns the new modified time.
+pub fn write(root: &Path, rel: &str, text: &str, expected_modified: Option<i64>) -> Result<i64, String> {
+    let path = resolve(root, rel)?;
+    if !is_note(&path) {
+        return Err("not a note".into());
+    }
+    if let Some(expected) = expected_modified
+        && modified_secs(&path) > expected
+    {
+        return Err("changed".into());
+    }
+    let tmp = path.with_extension("niagara-tmp");
+    fs::write(&tmp, text).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    Ok(modified_secs(&path))
+}
+
+/// Creates an empty note `<folder>/<title>.md` (numbered if the name is taken) and returns its path.
+pub fn create(root: &Path, folder: &str, title: &str) -> Result<String, String> {
+    let folder = folder.trim().trim_matches('/');
+    if Path::new(folder).components().any(|c| !matches!(c, Component::Normal(_))) {
+        return Err("invalid folder".into());
+    }
+    if !root.is_dir() {
+        return Err("note folder not found".into());
+    }
+    let dir = root.join(folder);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let stem = file_stem_for(title);
+    let path = (1..1000)
+        .map(|n| dir.join(if n == 1 { format!("{stem}.md") } else { format!("{stem} {n}.md") }))
+        .find(|p| !p.exists())
+        .ok_or("too many notes with this name")?;
+    fs::write(&path, "").map_err(|e| e.to_string())?;
+    Ok(rel_string(path.strip_prefix(root).map_err(|e| e.to_string())?))
+}
+
+/// Switches a note between `.txt` and `.md` (the text stays as it is) and returns the new path.
+pub fn convert(root: &Path, rel: &str) -> Result<String, String> {
+    let path = resolve(root, rel)?;
+    let to = match path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref() {
+        Some("txt") => "md",
+        Some("md") => "txt",
+        _ => return Err("not a note".into()),
+    };
+    let target = path.with_extension(to);
+    if target.exists() {
+        return Err("exists".into());
+    }
+    fs::rename(&path, &target).map_err(|e| e.to_string())?;
+    let canon_root = root.canonicalize().map_err(|e| e.to_string())?;
+    Ok(rel_string(target.strip_prefix(&canon_root).map_err(|e| e.to_string())?))
 }
 
 /// Absolute path of a note, for "Open in Obsidian".
@@ -297,6 +368,7 @@ mod tests {
         fs::write(dir.join("Home.md"), "# Home\n[[SQL]]").unwrap();
         fs::write(dir.join("10 공부/SQL.md"), "JOIN").unwrap();
         fs::write(dir.join("10 공부/diagram.png"), b"png").unwrap();
+        fs::write(dir.join("10 공부/lecture.txt"), "plain notes").unwrap();
         fs::write(dir.join(".obsidian/workspace.md"), "settings").unwrap();
         dir
     }
@@ -315,7 +387,11 @@ mod tests {
         paths.sort();
         assert_eq!(
             paths,
-            vec![("10 공부/SQL.md".into(), "SQL".into(), "10 공부".into()), ("Home.md".into(), "Home".into(), String::new())]
+            vec![
+                ("10 공부/SQL.md".into(), "SQL".into(), "10 공부".into()),
+                ("10 공부/lecture.txt".into(), "lecture".into(), "10 공부".into()),
+                ("Home.md".into(), "Home".into(), String::new())
+            ]
         );
     }
 
@@ -323,10 +399,34 @@ mod tests {
     fn reads_only_inside_the_vault() {
         let root = vault();
         assert_eq!(read(&root, "10 공부/SQL.md").unwrap(), "JOIN");
+        assert_eq!(read(&root, "10 공부/lecture.txt").unwrap(), "plain notes");
         assert!(read(&root, "../outside.md").is_err());
         assert!(read(&root, "/etc/passwd").is_err());
         assert!(read(&root, "10 공부/diagram.png").is_err());
         assert!(read(&root, "missing.md").is_err());
+    }
+
+    #[test]
+    fn notes_can_be_created_edited_and_switched_between_txt_and_md() {
+        let root = vault();
+        let rel = create(&root, "20 메모", "새 노트").unwrap();
+        assert_eq!(rel, "20 메모/새 노트.md");
+        assert_eq!(create(&root, "20 메모", "새 노트").unwrap(), "20 메모/새 노트 2.md");
+        assert!(create(&root, "../out", "x").is_err());
+
+        let t = write(&root, &rel, "# 제목", None).unwrap();
+        assert_eq!(read(&root, &rel).unwrap(), "# 제목");
+        // Changed elsewhere after the editor loaded it: refused.
+        assert_eq!(write(&root, &rel, "old view", Some(t - 10)), Err("changed".into()));
+        assert!(write(&root, &rel, "fresh", Some(t)).is_ok());
+
+        assert_eq!(convert(&root, "10 공부/lecture.txt").unwrap(), "10 공부/lecture.md");
+        assert_eq!(convert(&root, "10 공부/lecture.md").unwrap(), "10 공부/lecture.txt");
+        assert_eq!(read(&root, "10 공부/lecture.txt").unwrap(), "plain notes");
+        assert_eq!(convert(&root, "10 공부/SQL.md").ok(), Some("10 공부/SQL.txt".into()));
+        fs::write(root.join("10 공부/SQL.md"), "dup").unwrap();
+        assert_eq!(convert(&root, "10 공부/SQL.txt"), Err("exists".into()));
+        assert!(write(&root, "../escape.md", "x", None).is_err());
     }
 
     #[test]

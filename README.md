@@ -124,7 +124,7 @@ Niagara Scheduler\        ← 설치 폴더
 - 라이트 / 다크 / 시스템 테마, 색상 테마 프리셋과 직접 만들기 (메인 색, 보조 색, 배경 색감)
 - Windows 제목 표시줄 색이 테마를 따라감
 - 스티커: 내 이미지(투명 PNG, 움직이는 GIF 포함)를 아무 페이지에나 붙이고 옮기기·크기·회전 조절 (꾸미기 모드에서만 편집, 평소에는 클릭을 방해하지 않음)
-- 한국어 / English / 日本語, Pretendard 글꼴 (일본어는 Noto Sans JP, 앱에 포함되어 오프라인에서도 표시)
+- 한국어 / English / 日本語, Pretendard 글꼴 (Niagara는 가볍게 하려고 일본어 글꼴을 넣지 않고 시스템 글꼴을 써요)
 - 사이드바 페이지 순서 바꾸기·숨기기
 - 화면 배율 조절
 - 창 크기·위치 기억, 크기 프리셋
@@ -149,7 +149,7 @@ Nora와 Niagara는 따로 저장되니까 둘을 같이 설치해 둬도 서로 
 | 백엔드 | Rust (edition 2024), SQLite ([rusqlite](https://github.com/rusqlite/rusqlite), 번들 빌드), chrono, serde, image, zip |
 | 프론트엔드 | [Svelte 5](https://svelte.dev) (runes), TypeScript, Vite |
 | 에디터 | [Tiptap 3](https://tiptap.dev) (Markdown 지원), marked, DOMPurify |
-| UI | Lucide 아이콘, Pretendard·Noto Sans JP 글꼴, 직접 만든 CSS 디자인 시스템 |
+| UI | Lucide 아이콘, Pretendard 글꼴, 직접 만든 CSS 디자인 시스템 |
 | Tauri 플러그인 | autostart, dialog, notification, opener, single-instance, window-state |
 | 작업 시간 추적 | active-win-pos-rs (현재 활성 창 읽기) |
 

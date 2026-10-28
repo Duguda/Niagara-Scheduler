@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Gem,
+    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Gem, Sticker,
     CalendarDays, PanelRight, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
   } from '@lucide/svelte';
   import { calPrefs, setCalPrefs } from '../lib/calPrefs.svelte';
@@ -11,6 +11,7 @@
   import Modal from '../components/Modal.svelte';
   import { api, type BackupManifest, type StorageInfo } from '../lib/api';
   import { DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, VAULT_KEY } from '../lib/obsidian';
+  import { setDecorating, stickers } from '../lib/stickers.svelte';
   import { backupError, exportBackup, pickBackup } from '../lib/backup';
   import { fmtTs } from '../lib/dates';
   import { i18n, setLocale, t, type Locale } from '../lib/i18n.svelte';
@@ -302,6 +303,19 @@
           </div>
         </div>
       {/if}
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div class="icon"><Sticker size={18} /></div>
+        <div>
+          <h2>{t('sticker.decorate')}</h2>
+          <p class="muted small">{t('sticker.decorateHint')}. {t('set.decorateWhere')}</p>
+        </div>
+      </div>
+      <button class="btn" class:primary={!stickers.editing} onclick={() => setDecorating(!stickers.editing)}>
+        <Sticker size={15} /> {stickers.editing ? t('set.decorateStop') : t('set.decorateStart')}
+      </button>
     </section>
 
     <section class="card">

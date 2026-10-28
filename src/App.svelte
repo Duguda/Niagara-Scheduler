@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { fade, fly } from 'svelte/transition';
-  import { CircleCheck, PanelLeftClose, PanelLeftOpen, Pause, Play, Settings as SettingsIcon, Sticker } from '@lucide/svelte';
+  import { CircleCheck, PanelLeftClose, PanelLeftOpen, Pause, Play, Settings as SettingsIcon } from '@lucide/svelte';
   import { api, type TrackerStatus } from './lib/api';
   import { pomodoro, PHASES } from './lib/pomodoro.svelte';
   import { data, initSidebar, initTheme, setSidebarCollapsed, toast, ui } from './lib/state.svelte';
@@ -20,24 +20,31 @@
   import { initReminders } from './lib/reminders';
   import { initZoom, stepZoom } from './lib/window.svelte';
   import StickerLayer from './components/StickerLayer.svelte';
-  import { loadStickers, setDecorating, stickers } from './lib/stickers.svelte';
+  import { loadStickers } from './lib/stickers.svelte';
   import { loadCalPrefs } from './lib/calPrefs.svelte';
   import Home from './pages/Home.svelte';
-  import Calendar from './pages/Calendar.svelte';
-  import DDays from './pages/DDays.svelte';
-  import Todos from './pages/Todos.svelte';
-  import Pomodoro from './pages/Pomodoro.svelte';
-  import Memos from './pages/Memos.svelte';
-  import Diary from './pages/Diary.svelte';
-  import Tracking from './pages/Tracking.svelte';
-  import Analytics from './pages/Analytics.svelte';
-  import Bookmarks from './pages/Bookmarks.svelte';
-  import Expenses from './pages/Expenses.svelte';
-  import Commissions from './pages/Commissions.svelte';
-  import Health from './pages/Health.svelte';
-  import Reading from './pages/Reading.svelte';
-  import Notes from './pages/Notes.svelte';
-  import Settings from './pages/Settings.svelte';
+  import type { Component } from 'svelte';
+  import type { Page } from './lib/state.svelte';
+
+  // Every page but Overview is loaded the first time it is opened, so start-up only reads what it shows.
+  type Loader = () => Promise<{ default: Component }>;
+  const PAGE_LOADERS: Record<Exclude<Page, 'home'>, Loader> = {
+    calendar: () => import('./pages/Calendar.svelte'),
+    ddays: () => import('./pages/DDays.svelte'),
+    todos: () => import('./pages/Todos.svelte'),
+    pomodoro: () => import('./pages/Pomodoro.svelte'),
+    memos: () => import('./pages/Memos.svelte'),
+    notes: () => import('./pages/Notes.svelte'),
+    diary: () => import('./pages/Diary.svelte'),
+    tracking: () => import('./pages/Tracking.svelte'),
+    analytics: () => import('./pages/Analytics.svelte'),
+    bookmarks: () => import('./pages/Bookmarks.svelte'),
+    expenses: () => import('./pages/Expenses.svelte'),
+    commissions: () => import('./pages/Commissions.svelte'),
+    health: () => import('./pages/Health.svelte'),
+    reading: () => import('./pages/Reading.svelte'),
+    settings: () => import('./pages/Settings.svelte'),
+  };
 
   /** Sidebar pages in the user's order, without the ones turned off in Settings. */
   const NAV = $derived(visiblePages());
@@ -242,17 +249,6 @@
       </button>
     {/if}
 
-    <button
-      class="nav-item"
-      class:active={stickers.editing}
-      onclick={() => setDecorating(!stickers.editing)}
-      title={collapsed ? t('sticker.decorate') : t('sticker.decorateHint')}
-      aria-label={t('sticker.decorate')}
-      aria-pressed={stickers.editing}
-    >
-      <Sticker size={19} />
-      <span class="label-text">{t('sticker.decorate')}</span>
-    </button>
 
     <button
       class="nav-item"
@@ -283,21 +279,9 @@
     {#key ui.page}
       <div class="page-host" in:fly={{ y: 8, duration: 220 }}>
         {#if ui.page === 'home'}<Home />
-        {:else if ui.page === 'calendar'}<Calendar />
-        {:else if ui.page === 'ddays'}<DDays />
-        {:else if ui.page === 'todos'}<Todos />
-        {:else if ui.page === 'pomodoro'}<Pomodoro />
-        {:else if ui.page === 'memos'}<Memos />
-        {:else if ui.page === 'diary'}<Diary />
-        {:else if ui.page === 'tracking'}<Tracking />
-        {:else if ui.page === 'analytics'}<Analytics />
-        {:else if ui.page === 'bookmarks'}<Bookmarks />
-        {:else if ui.page === 'expenses'}<Expenses />
-        {:else if ui.page === 'commissions'}<Commissions />
-        {:else if ui.page === 'health'}<Health />
-        {:else if ui.page === 'reading'}<Reading />
-        {:else if ui.page === 'notes'}<Notes />
-        {:else}<Settings />{/if}
+        {:else}
+          {#await PAGE_LOADERS[ui.page]() then { default: PageView }}<PageView />{/await}
+        {/if}
       </div>
     {/key}
     <StickerLayer page={ui.page} />

@@ -35,9 +35,6 @@ pub struct Counts {
     pub ddays: u64,
     pub bookmarks: u64,
     pub expenses: u64,
-    /// Missing in backups made before the TRPG log existed.
-    #[serde(default)]
-    pub trpg: u64,
     /// Missing in backups made before the reading log existed.
     #[serde(default)]
     pub books: u64,
@@ -89,7 +86,6 @@ impl Db {
             ddays: count("ddays")?,
             bookmarks: count("bookmarks")?,
             expenses: count("expenses")?,
-            trpg: count("trpg_entries")?,
             books: count("books")?,
             meals: count("meals")?,
             workouts: count("workouts")?,

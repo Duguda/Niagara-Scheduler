@@ -60,7 +60,7 @@
     const list = [...map.entries()].map(([key, items]) => ({
       key,
       label:
-        group === 'year' ? t('trpg.year', { year: key }) : group === 'month' ? fmt(`${key}-01`, { year: 'numeric', month: 'long' }) : key || t('cm.kindNone'),
+        group === 'year' ? t('common.year', { year: key }) : group === 'month' ? fmt(`${key}-01`, { year: 'numeric', month: 'long' }) : key || t('cm.kindNone'),
       items: items.sort((a, b) => doneOn(b).localeCompare(doneOn(a))),
       price: items.reduce((s, c) => s + c.price, 0),
       paid: items.reduce((s, c) => s + paidOf(c), 0),
@@ -116,7 +116,7 @@
     {#if group !== 'year'}
       <div class="segmented years" role="group" aria-label={t('cm.year')}>
         {#each years as y (y)}
-          <button class:active={year === y} onclick={() => (year = y)}>{t('trpg.year', { year: y })}</button>
+          <button class:active={year === y} onclick={() => (year = y)}>{t('common.year', { year: y })}</button>
         {/each}
       </div>
     {/if}
@@ -125,7 +125,7 @@
   </div>
 
   <div class="stats">
-    <StatCard label={t('cm.statDone')} value={String(shown.length)} sub={group === 'year' ? t('cm.allYears') : t('trpg.year', { year })} icon={CalendarCheck} tint="var(--success)" />
+    <StatCard label={t('cm.statDone')} value={String(shown.length)} sub={group === 'year' ? t('cm.allYears') : t('common.year', { year })} icon={CalendarCheck} tint="var(--success)" />
     <StatCard label={t('cm.statDoneTotal')} value={fmtMoney(shownPrice)} sub={t('cm.basisDone')} icon={Receipt} />
     <StatCard label={t('cm.statReceived')} value={fmtMoney(received)} sub={t('cm.basisPaid', { n: payments.length })} icon={Wallet} tint="var(--long-break)" />
     <StatCard label={t('cm.statUnpaid')} value={fmtMoney(shownUnpaid)} sub={t('cm.unpaidDone')} icon={HandCoins} tint={shownUnpaid > 0 ? 'var(--warning)' : 'var(--success)'} />

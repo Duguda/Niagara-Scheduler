@@ -1,10 +1,10 @@
-// Shelf or plain list for the book pages (TRPG, Reading); remembered per page in the settings.
+// Shelf or plain list for the book pages (Reading); remembered per page in the settings.
 import { api } from './api';
 
 export type BookView = 'shelf' | 'list';
-export type BookViewPage = 'trpg' | 'reading';
+export type BookViewPage = 'reading';
 
-export const bookViews = $state<Record<BookViewPage, BookView>>({ trpg: 'shelf', reading: 'shelf' });
+export const bookViews = $state<Record<BookViewPage, BookView>>({ reading: 'shelf' });
 const loaded = new Set<BookViewPage>();
 
 const key = (page: BookViewPage) => `ui.bookView.${page}`;

@@ -222,36 +222,6 @@ export interface Workout {
   note: string;
 }
 
-/** Which TRPG list an entry belongs to. */
-export type TrpgKind = 'rulebook' | 'scenario_book' | 'played' | 'wishlist';
-
-export interface TrpgEntry {
-  id: number;
-  kind: TrpgKind;
-  title: string;
-  /** Scenario writer, or the book's author / publisher. */
-  writer: string;
-  /** Rule system, e.g. "CoC 7th". */
-  system: string;
-  links: string[];
-  /** Cover image file name (books), see lib/images.ts. */
-  image: string | null;
-  /** When it was played (`played` entries). */
-  date: DateStr | null;
-  /** Roles played, comma-separated: 'gm', 'pl', 'HO1', 'PC2'… (see lib/trpgRoles.ts); '' when not recorded. */
-  role: string;
-  /** Kept from an earlier version (who played together); no longer shown. */
-  pair: string;
-  /** User-named group the entry is filed under, e.g. "CoC 타이만"; '' for none. */
-  folder: string;
-  memo: string;
-  created_at: number;
-  /** Place in the custom (dragged) order of its list; ties are shown A–Z. */
-  position: number;
-  /** How many times the user has played from this scenario book (`scenario_book` entries). */
-  play_count: number;
-}
-
 export type BookStatus = 'want' | 'reading' | 'read';
 
 export interface Book {
@@ -279,7 +249,7 @@ export interface BackupManifest {
   format: number;
   app_version: string;
   exported_at: number;
-  counts: { events: number; todos: number; memos: number; ddays: number; bookmarks: number; expenses: number; trpg?: number; books?: number; meals?: number; workouts?: number; commissions?: number; diary?: number; images: number };
+  counts: { events: number; todos: number; memos: number; ddays: number; bookmarks: number; expenses: number; books?: number; meals?: number; workouts?: number; commissions?: number; diary?: number; images: number };
 }
 
 export interface Memo {
@@ -420,10 +390,6 @@ export const api = {
   saveWorkout: (workout: Workout) => invoke<number>('save_workout', { workout }),
   deleteWorkout: (id: number) => invoke<Workout | null>('delete_workout', { id }),
 
-  trpgEntries: () => invoke<TrpgEntry[]>('trpg_entries'),
-  saveTrpgEntry: (entry: TrpgEntry) => invoke<number>('save_trpg_entry', { entry }),
-  deleteTrpgEntry: (id: number) => invoke<TrpgEntry | null>('delete_trpg_entry', { id }),
-  reorderTrpgEntries: (ids: number[]) => invoke<void>('reorder_trpg_entries', { ids }),
 
   books: () => invoke<Book[]>('books'),
   saveBook: (book: Book) => invoke<number>('save_book', { book }),

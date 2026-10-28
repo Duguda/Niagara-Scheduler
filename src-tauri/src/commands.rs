@@ -15,7 +15,6 @@ use crate::health::{self, Meal, Workout};
 use crate::db::{ActivitySummary, Activity, DDay, Event, Memo, MemoGroup, PomodoroSession, Scope, Tag, Todo, TodoGroup};
 use crate::tracker::{TrackerSettings, TrackerStatus};
 use crate::reading::Book;
-use crate::trpg::TrpgEntry;
 
 type CmdResult<T> = Result<T, String>;
 
@@ -385,50 +384,6 @@ pub fn reorder_bookmarks(state: State<AppState>, ids: Vec<i64>) -> CmdResult<()>
 #[tauri::command]
 pub fn delete_bookmark(state: State<AppState>, id: i64) -> CmdResult<Option<Bookmark>> {
     with_db(&state, |db| db.delete_bookmark(id))
-}
-
-// ---- TRPG log -------------------------------------------------------------------
-
-#[tauri::command]
-pub fn trpg_entries(state: State<AppState>) -> CmdResult<Vec<TrpgEntry>> {
-    with_db(&state, |db| db.trpg_entries())
-}
-
-#[tauri::command]
-pub fn save_trpg_entry(state: State<AppState>, entry: TrpgEntry) -> CmdResult<i64> {
-    let title = entry.title.trim();
-    if title.is_empty() {
-        return Err("title required".into());
-    }
-    if !TrpgEntry::KINDS.contains(&entry.kind.as_str()) {
-        return Err("invalid entry".into());
-    }
-    let entry = TrpgEntry {
-        title: title.into(),
-        role: TrpgEntry::clean_roles(&entry.role),
-        folder: entry.folder.trim().chars().take(60).collect(),
-        writer: entry.writer.trim().into(),
-        system: entry.system.trim().into(),
-        memo: entry.memo.trim().into(),
-        image: entry.image.filter(|name| crate::images::is_safe_name(name)),
-        // Only scenario books keep a play count.
-        play_count: if entry.kind == "scenario_book" { entry.play_count.clamp(0, TrpgEntry::MAX_PLAY_COUNT) } else { 0 },
-        ..entry
-    };
-    let id = with_db(&state, |db| db.save_trpg_entry(&entry))?;
-    // A replaced or removed cover is no longer referenced: delete the file.
-    remove_unused_images(state)?;
-    Ok(id)
-}
-
-#[tauri::command]
-pub fn reorder_trpg_entries(state: State<AppState>, ids: Vec<i64>) -> CmdResult<()> {
-    with_db(&state, |db| db.reorder_trpg_entries(&ids))
-}
-
-#[tauri::command]
-pub fn delete_trpg_entry(state: State<AppState>, id: i64) -> CmdResult<Option<TrpgEntry>> {
-    with_db(&state, |db| db.delete_trpg_entry(id))
 }
 
 // ---- reading log ------------------------------------------------------------------

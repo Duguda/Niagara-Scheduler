@@ -1,6 +1,6 @@
 // Hover card: a small popup with an event's details (time, place, tags, memo), a whole
 // day's events when hovering a day in the overview calendar, or a plain note (title,
-// one line of details and a memo) for other items such as TRPG scenarios. Rendered by
+// one line of details and a memo) for other items such as books. Rendered by
 // EventHoverCard in App.
 import type { CalEvent } from './api';
 import { copyEvent, pointer } from './clipboard.svelte';

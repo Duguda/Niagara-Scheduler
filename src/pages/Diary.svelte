@@ -364,7 +364,7 @@
     <div class="toolbar">
       <div class="nav">
         <button class="icon-btn" onclick={() => (year = String(Number(year) - 1))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
-        <span class="range strong">{t('trpg.year', { year })}</span>
+        <span class="range strong">{t('common.year', { year })}</span>
         <button class="icon-btn" onclick={() => (year = String(Number(year) + 1))} aria-label={t('common.next')}><ChevronRight size={18} /></button>
       </div>
       <span class="spacer"></span>

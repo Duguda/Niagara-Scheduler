@@ -138,24 +138,6 @@ CREATE TABLE IF NOT EXISTS tags (
     category TEXT    NOT NULL DEFAULT ''
 );
 
-CREATE TABLE IF NOT EXISTS trpg_entries (
-    id         INTEGER PRIMARY KEY,
-    kind       TEXT    NOT NULL,
-    title      TEXT    NOT NULL,
-    writer     TEXT    NOT NULL DEFAULT '',
-    system     TEXT    NOT NULL DEFAULT '',
-    links      TEXT    NOT NULL DEFAULT '',
-    image      TEXT,
-    date       TEXT,
-    role       TEXT    NOT NULL DEFAULT '',
-    memo       TEXT    NOT NULL DEFAULT '',
-    created_at INTEGER NOT NULL,
-    pair       TEXT    NOT NULL DEFAULT '',
-    folder     TEXT    NOT NULL DEFAULT '',
-    position   INTEGER NOT NULL DEFAULT 0,
-    play_count INTEGER NOT NULL DEFAULT 0
-);
-
 CREATE TABLE IF NOT EXISTS books (
     id           INTEGER PRIMARY KEY,
     title        TEXT    NOT NULL,
@@ -497,7 +479,7 @@ fn todo_from_row(r: &Row) -> DbResult<Todo> {
 }
 
 pub struct Db {
-    /// Shared with the `impl Db` blocks in `bookmarks.rs`, `expenses.rs`, `health.rs`, `trpg.rs`, `reading.rs`, `commissions.rs` and `diary.rs`.
+    /// Shared with the `impl Db` blocks in `bookmarks.rs`, `expenses.rs`, `health.rs`, `reading.rs`, `commissions.rs` and `diary.rs`.
     pub(crate) conn: Connection,
 }
 
@@ -572,23 +554,6 @@ fn migrate(conn: &Connection) -> DbResult<()> {
     if !has_memo_group {
         conn.execute_batch("ALTER TABLE memos ADD COLUMN group_id INTEGER REFERENCES memo_groups(id) ON DELETE SET NULL")?;
     }
-    // The first TRPG log had a single `link` and no cover image.
-    let has_trpg_links = conn
-        .prepare("SELECT 1 FROM pragma_table_info('trpg_entries') WHERE name = 'links'")?
-        .exists([])?;
-    if !has_trpg_links {
-        conn.execute_batch(
-            "ALTER TABLE trpg_entries ADD COLUMN links TEXT NOT NULL DEFAULT '';
-             ALTER TABLE trpg_entries ADD COLUMN image TEXT;
-             UPDATE trpg_entries SET links = link;",
-        )?;
-    }
-    let has_trpg_pair = conn
-        .prepare("SELECT 1 FROM pragma_table_info('trpg_entries') WHERE name = 'pair'")?
-        .exists([])?;
-    if !has_trpg_pair {
-        conn.execute_batch("ALTER TABLE trpg_entries ADD COLUMN pair TEXT NOT NULL DEFAULT ''")?;
-    }
     // Bookmarks used to be listed newest first; keep that order as the starting point.
     let has_bookmark_position = conn
         .prepare("SELECT 1 FROM pragma_table_info('bookmarks') WHERE name = 'position'")?
@@ -601,25 +566,6 @@ fn migrate(conn: &Connection) -> DbResult<()> {
                  WHERE b2.created_at > bookmarks.created_at OR (b2.created_at = bookmarks.created_at AND b2.id > bookmarks.id)
              );",
         )?;
-    }
-    let has_trpg_folder = conn
-        .prepare("SELECT 1 FROM pragma_table_info('trpg_entries') WHERE name = 'folder'")?
-        .exists([])?;
-    if !has_trpg_folder {
-        conn.execute_batch("ALTER TABLE trpg_entries ADD COLUMN folder TEXT NOT NULL DEFAULT ''")?;
-    }
-    // Custom order for the book shelves. All 0 at first, so the custom order starts out A–Z.
-    let has_trpg_position = conn
-        .prepare("SELECT 1 FROM pragma_table_info('trpg_entries') WHERE name = 'position'")?
-        .exists([])?;
-    if !has_trpg_position {
-        conn.execute_batch("ALTER TABLE trpg_entries ADD COLUMN position INTEGER NOT NULL DEFAULT 0")?;
-    }
-    let has_trpg_play_count = conn
-        .prepare("SELECT 1 FROM pragma_table_info('trpg_entries') WHERE name = 'play_count'")?
-        .exists([])?;
-    if !has_trpg_play_count {
-        conn.execute_batch("ALTER TABLE trpg_entries ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0")?;
     }
     let has_tags = conn
         .prepare("SELECT 1 FROM pragma_table_info('events') WHERE name = 'tags'")?
@@ -902,11 +848,10 @@ impl Db {
         Ok(())
     }
 
-    /// Image files still referenced by a D-Day, book, TRPG entry, commission or diary page.
+    /// Image files still referenced by a D-Day, book, commission or diary page.
     pub fn referenced_images(&self) -> DbResult<std::collections::HashSet<String>> {
         let mut st = self.conn.prepare(
             "SELECT image FROM ddays WHERE image IS NOT NULL
-             UNION SELECT image FROM trpg_entries WHERE image IS NOT NULL
              UNION SELECT image FROM books WHERE image IS NOT NULL
              UNION SELECT image FROM commissions WHERE image IS NOT NULL",
         )?;

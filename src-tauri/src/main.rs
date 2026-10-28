@@ -14,7 +14,6 @@ mod reading;
 mod recurrence;
 mod reminders;
 mod tracker;
-mod trpg;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -143,10 +142,6 @@ fn main() {
             commands::workouts_between,
             commands::save_workout,
             commands::delete_workout,
-            commands::trpg_entries,
-            commands::save_trpg_entry,
-            commands::delete_trpg_entry,
-            commands::reorder_trpg_entries,
             commands::books,
             commands::save_book,
             commands::delete_book,

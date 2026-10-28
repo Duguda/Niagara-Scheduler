@@ -23,7 +23,7 @@ export function colorForName(name: string): string {
   return hex(PALETTE[h % PALETTE.length].value);
 }
 
-/** Cloth-cover colors for books without a cover image (TRPG and Reading shelves). */
+/** Cloth-cover colors for books without a cover image (Reading shelf). */
 const COVER_COLORS = ['#2f4a7a', '#7a2e3a', '#2f6b4f', '#b0812a', '#21757d', '#5b3f86', '#8a5a3c', '#3d4f63', '#a8466a'];
 
 /** A stable cover color for a book title. */

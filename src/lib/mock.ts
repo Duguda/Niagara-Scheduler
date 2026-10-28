@@ -2,7 +2,7 @@
 // Loaded from main.ts only when `import.meta.env.DEV` and Tauri is absent.
 // Supports `?page=todos&theme=dark` to open a specific page.
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
-import type { Activity, Bookmark, BookmarkFolder, CalEvent, DDay, Commission, CommissionClient, DiaryEntry, Expense, Meal, Memo, MemoGroup, Workout, PomodoroSession, Tag, Todo, TodoGroup, TrpgEntry, Book } from './api';
+import type { Activity, Bookmark, BookmarkFolder, CalEvent, DDay, Commission, CommissionClient, DiaryEntry, Expense, Meal, Memo, MemoGroup, Workout, PomodoroSession, Tag, Todo, TodoGroup, Book } from './api';
 import { addDays, addMinutes, addMonths, dayStartTs, diffDays, eventSpan, parseYmd, timeOf, today, toDateTime } from './dates';
 
 /** Mirrors src-tauri/src/recurrence.rs (dev preview only). */
@@ -170,18 +170,6 @@ export function installMock() {
     });
     if (d <= 0 && d % 2 === 0) workouts.push({ id: 6000 + d + 6, date: day, kind: d === 0 ? 'running' : 'walking', minutes: d === 0 ? 30 : 45, kcal: d === 0 ? 294 : 158, note: '' });
   }
-  const trpg: TrpgEntry[] = ([
-    { id: 2000, kind: 'rulebook', title: 'Call of Cthulhu 7th Edition', writer: 'Chaosium', system: 'CoC 7th', links: [], image: null, date: null, role: '', pair: '', folder: '', memo: '', created_at: now - 86_400 * 90 },
-    { id: 2001, kind: 'scenario_book', title: 'Doors to Darkness', writer: 'Chaosium', system: 'CoC 7th', links: [], image: null, date: null, role: '', pair: '', folder: '', memo: '5 starter scenarios', created_at: now - 86_400 * 60 },
-    { id: 2002, kind: 'played', title: 'COSMOS', writer: '노라', system: 'CoC 7th', links: ['https://example.com/cosmos', 'https://example.com/cosmos-log'], image: null, date: '2026-03-03', role: 'pl,HO1', pair: '', folder: 'CoC 타이만', memo: '', created_at: now - 86_400 * 200 },
-    { id: 2003, kind: 'played', title: 'The Haunting', writer: 'Sandy Petersen', system: 'CoC 7th', links: [], image: null, date: '2025-11-20', role: 'gm', pair: '', folder: '', memo: '', created_at: now - 86_400 * 300 },
-    { id: 2005, kind: 'played', title: '가면무도회', writer: '하루', system: 'CoC 7th', links: [], image: null, date: '2026-05-10', role: 'gm', pair: '', folder: '', memo: '', created_at: now - 86_400 * 150 },
-    { id: 2006, kind: 'played', title: '하늘의 노래', writer: '미도', system: 'Insane', links: ['https://example.com/sky'], image: null, date: '2025-07-01', role: 'pl', pair: '하루 & 미도', folder: '', memo: '', created_at: now - 86_400 * 400 },
-    { id: 2007, kind: 'rulebook', title: '인세인', writer: '모험기획국', system: 'Insane', links: [], image: null, date: null, role: '', pair: '', folder: '', memo: '', created_at: now - 86_400 * 80 },
-    { id: 2008, kind: 'rulebook', title: 'Delta Green', writer: 'Arc Dream', system: 'Delta Green', links: [], image: null, date: null, role: '', pair: '', folder: '', memo: '', created_at: now - 86_400 * 70 },
-    { id: 2009, kind: 'wishlist', title: '달빛 아래', writer: '노라', system: 'CoC 7th', links: [], image: null, date: null, role: '', pair: '', folder: '', memo: '', created_at: now - 86_400 * 3 },
-    { id: 2004, kind: 'wishlist', title: 'Masks of Nyarlathotep', writer: 'Larry DiTillio', system: 'CoC 7th', links: ['https://example.com/masks'], image: null, date: null, role: '', pair: '', folder: '', memo: 'Long campaign', created_at: now - 86_400 * 10 },
-  ] as Omit<TrpgEntry, 'position' | 'play_count'>[]).map((e) => ({ ...e, position: 0, play_count: e.id === 2001 ? 3 : 0 }));
   const book = (id: number, title: string, author: string, status: Book['status'], extra: Partial<Book> = {}): Book => ({
     id, title, author, publisher: '', status, image: null, total_pages: 0, current_page: 0, rating: 0,
     started: null, finished: null, review: '', created_at: now - 86_400 * (100 - id + 3000), ...extra,
@@ -384,14 +372,6 @@ export function installMock() {
         workouts.push({ ...a.workout, id: nextId }); return nextId++;
       }
       case 'delete_workout': { const i = workouts.findIndex((w) => w.id === a.id); return i < 0 ? null : workouts.splice(i, 1)[0]; }
-      case 'trpg_entries': return [...trpg].sort((x, y) => x.kind.localeCompare(y.kind) || (y.date ?? '').localeCompare(x.date ?? '') || y.created_at - x.created_at);
-      case 'save_trpg_entry': {
-        if (a.entry.id) { Object.assign(trpg.find((e) => e.id === a.entry.id)!, a.entry); return a.entry.id; }
-        const last = Math.max(0, ...trpg.filter((e) => e.kind === a.entry.kind).map((e) => e.position));
-        trpg.push({ ...a.entry, id: nextId, created_at: a.entry.created_at || now, position: last + 1 }); return nextId++;
-      }
-      case 'reorder_trpg_entries': (a.ids as number[]).forEach((id, i) => { const e = trpg.find((x) => x.id === id); if (e) e.position = i; }); return null;
-      case 'delete_trpg_entry': { const i = trpg.findIndex((e) => e.id === a.id); return i < 0 ? null : trpg.splice(i, 1)[0]; }
       case 'books': return [...books].sort((x, y) => y.created_at - x.created_at);
       case 'save_book': {
         if (a.book.id) { Object.assign(books.find((b) => b.id === a.book.id)!, a.book); return a.book.id; }
@@ -403,7 +383,7 @@ export function installMock() {
       case 'export_data':
       case 'inspect_backup':
         return { format: 1, app_version: '0.1.0', exported_at: now - 86_400 * 3,
-          counts: { events: events.length, todos: todos.length, memos: memos.length, ddays: ddays.length, bookmarks: bookmarks.length, expenses: expenses.length, trpg: trpg.length, books: books.length, meals: meals.length, workouts: workouts.length, commissions: commissions.length, diary: diary.length, images: 2 } };
+          counts: { events: events.length, todos: todos.length, memos: memos.length, ddays: ddays.length, bookmarks: bookmarks.length, expenses: expenses.length, books: books.length, meals: meals.length, workouts: workouts.length, commissions: commissions.length, diary: diary.length, images: 2 } };
       case 'import_data':
       case 'reset_all_data':
         return null;

@@ -440,7 +440,7 @@
                 </span>
               </div>
             {:else}
-              <p class="faint small col-empty">{query.trim() ? t('trpg.noMatch') : t('cm.emptyColumn')}</p>
+              <p class="faint small col-empty">{query.trim() ? t('common.noMatch') : t('cm.emptyColumn')}</p>
             {/each}
             {/if}
           </section>
@@ -478,7 +478,7 @@
   {:else}
     <div class="card empty">
       <span class="empty-icon"><Contact size={30} /></span>
-      <p>{query.trim() ? t('trpg.noMatch') : t('cm.clientEmpty')}</p>
+      <p>{query.trim() ? t('common.noMatch') : t('cm.clientEmpty')}</p>
     </div>
   {/if}
 </div>
@@ -525,7 +525,7 @@
         <div class="stepper">
           <button type="button" onclick={() => editing && setRevisions(editing.revisions - 1)} disabled={editing.revisions <= 0} aria-label={t('pomo.decrease')}><Minus size={14} /></button>
           <input id="cm-revisions" class="tabular" type="number" min="0" max="999" value={editing.revisions} oninput={(e) => setRevisions(Number(e.currentTarget.value))} />
-          <span class="unit">{t('trpg.playUnit')}</span>
+          <span class="unit">{t('common.timesUnit')}</span>
           <button type="button" onclick={() => editing && setRevisions(editing.revisions + 1)} aria-label={t('pomo.increase')}><Plus size={14} /></button>
         </div>
       </div>

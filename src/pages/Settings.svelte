@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook,
+    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, Sunrise, SwatchBook, RefreshCw,
     CalendarDays, PanelRight, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
   } from '@lucide/svelte';
   import { calPrefs, setCalPrefs } from '../lib/calPrefs.svelte';
@@ -87,6 +87,20 @@
 
   onMount(() => {
     loadSavedSizes().then((s) => (saved = s));
+  });
+
+  // Morning brief feed (src-tauri/src/brief.rs): show where it is and allow a manual refresh.
+  let briefPath = $state('');
+  async function refreshBrief(announce: boolean) {
+    try {
+      briefPath = await api.refreshBrief();
+      if (announce) toast(t('brief.updated'), 'success');
+    } catch (e) {
+      if (announce) toast(String(e), 'error');
+    }
+  }
+  onMount(() => {
+    refreshBrief(false);
   });
 
   async function saveCurrent() {
@@ -493,6 +507,20 @@
             <span class="muted small">{t('data.importHint')}</span>
           </span>
         </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div class="icon"><Sunrise size={18} /></div>
+        <div>
+          <h2>{t('brief.title')}</h2>
+          <p class="muted small">{t('brief.body')}</p>
+        </div>
+      </div>
+      <div class="brief-row">
+        <span class="brief-path small truncate" title={briefPath}>{briefPath || '—'}</span>
+        <button class="btn small" onclick={() => refreshBrief(true)}><RefreshCw size={14} /> {t('brief.refresh')}</button>
       </div>
     </section>
 
@@ -1049,6 +1077,19 @@
     .options.three {
       grid-template-columns: minmax(0, 1fr);
     }
+  }
+  .brief-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brief-path {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    font-family: var(--mono);
   }
   .data-actions {
     display: grid;

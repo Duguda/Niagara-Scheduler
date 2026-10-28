@@ -386,6 +386,70 @@ pub fn delete_bookmark(state: State<AppState>, id: i64) -> CmdResult<Option<Book
     with_db(&state, |db| db.delete_bookmark(id))
 }
 
+// ---- Obsidian vault ------------------------------------------------------------------
+
+fn vault_root(state: &State<AppState>) -> CmdResult<std::path::PathBuf> {
+    let root = with_db(state, |db| db.setting(crate::obsidian::VAULT_KEY))?;
+    root.filter(|r| !r.trim().is_empty()).map(std::path::PathBuf::from).ok_or_else(|| "no vault".to_string())
+}
+
+#[tauri::command]
+pub async fn obsidian_notes(state: State<'_, AppState>) -> CmdResult<Vec<crate::obsidian::NoteMeta>> {
+    let root = vault_root(&state)?;
+    tauri::async_runtime::spawn_blocking(move || crate::obsidian::list(&root).map_err(|e| e.to_string()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn obsidian_read(state: State<AppState>, path: String) -> CmdResult<String> {
+    crate::obsidian::read(&vault_root(&state)?, &path)
+}
+
+/// `obsidian://open?path=…` link for a note, which opens it in the Obsidian app.
+#[tauri::command]
+pub fn obsidian_open_url(state: State<AppState>, path: String) -> CmdResult<String> {
+    let full = crate::obsidian::absolute(&vault_root(&state)?, &path)?;
+    let text = full.to_string_lossy();
+    // Windows canonical paths start with `\\?\`, which Obsidian does not understand.
+    let text = text.strip_prefix(r"\\?\").unwrap_or(&text);
+    let encoded: String = text
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect();
+    Ok(format!("obsidian://open?path={encoded}"))
+}
+
+/// Writes a memo into the vault (see `obsidian::export_memo`) and returns the note's path.
+#[tauri::command]
+pub fn export_memo_to_obsidian(state: State<AppState>, id: i64) -> CmdResult<String> {
+    let root = vault_root(&state)?;
+    let (memo, dir) = with_db(&state, |db| {
+        let memo = db.memos()?.into_iter().find(|m| m.id == id);
+        let dir = db.setting(crate::obsidian::EXPORT_DIR_KEY)?;
+        Ok((memo, dir))
+    })?;
+    let memo = memo.ok_or("memo not found")?;
+    let dir = dir.filter(|d| !d.trim().is_empty()).unwrap_or_else(|| crate::obsidian::DEFAULT_EXPORT_DIR.into());
+    crate::obsidian::export_memo(
+        &root,
+        &dir,
+        &crate::obsidian::MemoNote { id: memo.id, title: &memo.title, body: &memo.body, created_at: memo.created_at, updated_at: memo.updated_at },
+    )
+}
+
+// ---- morning brief ------------------------------------------------------------------
+
+/// Rewrites `brief.json` now and returns where it is.
+#[tauri::command]
+pub fn refresh_brief(state: State<AppState>) -> CmdResult<String> {
+    let db = state.db.lock().map_err(|_| "database lock poisoned".to_string())?;
+    crate::brief::refresh(&db, &state.data_dir).map(|p| p.to_string_lossy().into_owned())
+}
+
 // ---- reading log ------------------------------------------------------------------
 
 #[tauri::command]

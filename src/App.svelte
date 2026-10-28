@@ -36,6 +36,7 @@
   import Commissions from './pages/Commissions.svelte';
   import Health from './pages/Health.svelte';
   import Reading from './pages/Reading.svelte';
+  import Notes from './pages/Notes.svelte';
   import Settings from './pages/Settings.svelte';
 
   /** Sidebar pages in the user's order, without the ones turned off in Settings. */
@@ -185,7 +186,7 @@
       <div class="logo"><CircleCheck size={20} strokeWidth={2.5} /></div>
       {#if !collapsed}
         <div class="brand-text" transition:fade={{ duration: 120 }}>
-          <div class="name">Nora</div>
+          <div class="name">Niagara</div>
           <div class="tag truncate">{t('app.tagline')}</div>
         </div>
       {/if}
@@ -295,6 +296,7 @@
         {:else if ui.page === 'commissions'}<Commissions />
         {:else if ui.page === 'health'}<Health />
         {:else if ui.page === 'reading'}<Reading />
+        {:else if ui.page === 'notes'}<Notes />
         {:else}<Settings />{/if}
       </div>
     {/key}

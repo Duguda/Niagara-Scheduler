@@ -4,7 +4,7 @@
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import { Check, FolderPlus, Hash, Inbox, Layers, NotebookPen, Pencil, Plus, Search, Trash, Type } from '@lucide/svelte';
+  import { Check, FolderPlus, Gem, Hash, Inbox, Layers, NotebookPen, Pencil, Plus, Search, Trash, Type } from '@lucide/svelte';
   import ConfirmButton from '../components/ConfirmButton.svelte';
   import ColorPicker from '../components/ColorPicker.svelte';
   import Modal from '../components/Modal.svelte';
@@ -14,6 +14,7 @@
   import { openMenu } from '../lib/menu.svelte';
   import { data, load, mutate, toast, ui } from '../lib/state.svelte';
   import { t } from '../lib/i18n.svelte';
+  import { VAULT_KEY } from '../lib/obsidian';
 
   // The rich editor (ProseMirror) is large, so it is only loaded when first used.
   const loadRichEditor = () => import('../components/RichEditor.svelte');
@@ -130,6 +131,19 @@
   }
 
   /** "Save": store now and switch to the reading view. */
+  /** Writes the memo into the Obsidian vault (lib/obsidian.ts, src-tauri/src/obsidian.rs). */
+  async function sendToObsidian(id: number) {
+    if (id === selectedId) await flush();
+    const vault = await api.getSetting(VAULT_KEY).catch(() => null);
+    if (!vault) return toast(t('memo.noVault'), 'info');
+    try {
+      const path = await api.exportMemoToObsidian(id);
+      toast(t('memo.sentToObsidian', { path }), 'success');
+    } catch (e) {
+      toast(String(e), 'error');
+    }
+  }
+
   async function save() {
     await flush();
     editing = false;
@@ -250,6 +264,7 @@
         .filter((g) => g.id !== m.group_id)
         .map((g) => ({ label: t('memo.moveTo', { name: g.name }), icon: Layers, action: () => moveTo(m.id, g.id) })),
       ...(m.group_id !== null ? [{ label: t('memo.moveTo', { name: t('memo.ungrouped') }), icon: Inbox, action: () => moveTo(m.id, null) }] : []),
+      { label: t('memo.sendToObsidian'), icon: Gem, action: () => sendToObsidian(m.id) },
       'separator',
       { label: t('menu.delete'), icon: Trash, danger: true, action: async () => { await select(m); remove(); } },
     ]);
@@ -379,6 +394,7 @@
           </div>
           <button class="btn primary" onclick={save}><Check size={16} /> {t('memo.save')}</button>
         {:else}
+          <button class="icon-btn" onclick={() => selectedId !== null && sendToObsidian(selectedId)} title={t('memo.sendToObsidian')} aria-label={t('memo.sendToObsidian')}><Gem size={17} /></button>
           <button class="btn primary" onclick={() => (editing = true)}><Pencil size={15} /> {t('memo.edit')}</button>
         {/if}
         <ConfirmButton onconfirm={remove} label="" question={t('memo.deleteQ')} />

@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod backup;
+mod brief;
 mod bookmarks;
 mod commands;
 mod commissions;
@@ -9,6 +10,7 @@ mod diary;
 mod expenses;
 mod health;
 mod images;
+mod obsidian;
 mod panel;
 mod reading;
 mod recurrence;
@@ -87,6 +89,7 @@ fn main() {
                 images::collect_garbage(&images_dir, &keep);
             }
             reminders::start(app.handle().clone(), db_path.clone());
+            brief::start(db_path.clone(), dir.clone());
             let tracker = tracker::start(db_path, tracker::TrackerSettings::load(&db));
             app.manage(AppState { db: Mutex::new(db), tracker, images_dir, data_dir: dir });
 
@@ -113,6 +116,11 @@ fn main() {
             panel::panel_show_main,
             panel::set_autostart,
             commands::get_setting,
+            commands::obsidian_notes,
+            commands::obsidian_read,
+            commands::obsidian_open_url,
+            commands::export_memo_to_obsidian,
+            commands::refresh_brief,
             commands::export_data,
             commands::inspect_backup,
             commands::import_data,

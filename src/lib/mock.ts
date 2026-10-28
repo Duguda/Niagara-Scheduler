@@ -184,7 +184,14 @@ export function installMock() {
     book(3006, '어떤 물질의 사랑', '천선란', 'want'),
     book(3007, 'Klara and the Sun', 'Kazuo Ishiguro', 'want'),
   ];
-  const settings: Record<string, string> = { 'expense.currency': 'KRW', 'expense.budget': '1200000' };
+  const settings: Record<string, string> = { 'expense.currency': 'KRW', 'expense.budget': '1200000', 'obsidian.vault': 'D:\\Notes\\Vault' };
+  // A tiny Obsidian vault for the browser preview of the Obsidian page.
+  const vaultNotes: Record<string, string> = {
+    'Home.md': '---\ntags: [hub]\n---\n# Home\n\nStudy hub. See [[SQL 정리]] and [[Network|network notes]].\n\n> [!tip] Today\n> Review ==JOIN== before the exam.\n\n![[diagram.png]]',
+    '10 Study/SQL 정리.md': '# SQL 정리\n\n- [x] SELECT\n- [ ] JOIN\n\n> [!warning] 주의\n> GROUP BY 다음에 HAVING.\n\n```sql\nSELECT * FROM t; -- [[not a link]]\n```\n\nBack to [[Home]].',
+    '10 Study/Network.md': '# Network\n\nOSI 7 layers.',
+    '20 Daily/2026-10-28.md': 'Ran 5km.',
+  };
   const previewLocale = new URLSearchParams(location.search).get('locale');
   if (previewLocale) settings['ui.locale'] = previewLocale;
   let tracker = { paused: false, idle_threshold_secs: 300, tracked_apps: ['Code', 'Google Chrome'] };
@@ -195,6 +202,20 @@ export function installMock() {
     switch (cmd) {
       case 'get_setting': return settings[a.key] ?? null;
       case 'set_setting': settings[a.key] = a.value; return null;
+      case 'obsidian_notes':
+        if (!settings['obsidian.vault']) throw 'no vault';
+        return Object.keys(vaultNotes).map((path, i) => {
+          const folder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+          return { path, title: path.split('/').pop()!.replace(/\.md$/, ''), folder, modified: now - i * 3600, size: vaultNotes[path].length };
+        });
+      case 'obsidian_read': {
+        const text = vaultNotes[a.path];
+        if (text === undefined) throw 'note not found';
+        return text;
+      }
+      case 'obsidian_open_url': return 'obsidian://open?path=' + encodeURIComponent(a.path);
+      case 'export_memo_to_obsidian': return 'Niagara/' + (memos.find((m) => m.id === a.id)?.title ?? 'Untitled') + '.md';
+      case 'refresh_brief': return 'C:\\Users\\me\\AppData\\Roaming\\com.niagara.scheduler\\brief.json';
       case 'events_between': {
         const out: CalEvent[] = [];
         for (const e of events) {

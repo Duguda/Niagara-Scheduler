@@ -6,7 +6,7 @@ import { broadcastPrefs } from './sync.svelte';
 import { CUSTOM_VAR_NAMES, customThemeVars, DEFAULT_CUSTOM_THEME, parseCustomTheme, type CustomTheme } from './customTheme';
 
 export type Page =
-  | 'home' | 'calendar' | 'ddays' | 'todos' | 'pomodoro' | 'memos' | 'diary' | 'bookmarks' | 'expenses' | 'commissions' | 'health' | 'reading' | 'tracking'
+  | 'home' | 'calendar' | 'ddays' | 'todos' | 'pomodoro' | 'memos' | 'notes' | 'diary' | 'bookmarks' | 'expenses' | 'commissions' | 'health' | 'reading' | 'tracking'
   | 'analytics' | 'settings';
 export type ThemePref = 'light' | 'dark' | 'system';
 export type Accent = 'default' | 'mono' | 'pink' | 'blue' | 'green' | 'brown' | 'custom';

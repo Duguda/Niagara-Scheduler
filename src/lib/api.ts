@@ -252,6 +252,17 @@ export interface BackupManifest {
   counts: { events: number; todos: number; memos: number; ddays: number; bookmarks: number; expenses: number; books?: number; meals?: number; workouts?: number; commissions?: number; diary?: number; images: number };
 }
 
+/** A Markdown note in the Obsidian vault (see src-tauri/src/obsidian.rs). */
+export interface NoteMeta {
+  /** Path inside the vault, `/`-separated. */
+  path: string;
+  title: string;
+  folder: string;
+  /** Unix seconds. */
+  modified: number;
+  size: number;
+}
+
 export interface Memo {
   id: number;
   title: string;
@@ -394,6 +405,12 @@ export const api = {
   books: () => invoke<Book[]>('books'),
   saveBook: (book: Book) => invoke<number>('save_book', { book }),
   deleteBook: (id: number) => invoke<Book | null>('delete_book', { id }),
+
+  obsidianNotes: () => invoke<NoteMeta[]>('obsidian_notes'),
+  obsidianRead: (path: string) => invoke<string>('obsidian_read', { path }),
+  obsidianOpenUrl: (path: string) => invoke<string>('obsidian_open_url', { path }),
+  exportMemoToObsidian: (id: number) => invoke<string>('export_memo_to_obsidian', { id }),
+  refreshBrief: () => invoke<string>('refresh_brief'),
 
   memos: () => invoke<Memo[]>('memos'),
   createMemo: (title: string, groupId: number | null = null) => invoke<number>('create_memo', { title, groupId }),

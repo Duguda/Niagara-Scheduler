@@ -319,6 +319,12 @@ pub fn tracker_status(state: State<AppState>) -> TrackerStatus {
     state.tracker.status()
 }
 
+/// Turns the Working time feature on or off (Settings → features), starting or stopping window reads.
+#[tauri::command]
+pub fn set_tracker_enabled(state: State<AppState>, enabled: bool) {
+    state.tracker.enabled.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
 #[tauri::command]
 pub fn tracker_settings(state: State<AppState>) -> TrackerSettings {
     state.tracker.settings()

@@ -9,7 +9,7 @@
   import { isPage } from './lib/panel';
   import { listen } from '@tauri-apps/api/event';
   import { initLocale, t } from './lib/i18n.svelte';
-  import { initPages, visiblePages } from './lib/pages.svelte';
+  import { initPages, isPageVisible, visiblePages } from './lib/pages.svelte';
   import { trackState } from './lib/tracker';
   import { clipboard, isMac, pageTarget, pointer, shortcut } from './lib/clipboard.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
@@ -21,6 +21,7 @@
   import { initZoom, stepZoom } from './lib/window.svelte';
   import StickerLayer from './components/StickerLayer.svelte';
   import { loadStickers } from './lib/stickers.svelte';
+  import { guide, initGuide } from './lib/guide.svelte';
   import { loadCalPrefs } from './lib/calPrefs.svelte';
   import Home from './pages/Home.svelte';
   import type { Component } from 'svelte';
@@ -69,6 +70,7 @@
     loadStickers();
     loadCalPrefs();
     initReminders();
+    initGuide();
     // Changes made in the overlay panel reload here, and its links open pages here.
     initSync(data, refreshTags, () => {
       initTheme();
@@ -242,7 +244,7 @@
       </button>
     {/if}
 
-    {#if tracker}
+    {#if tracker && isPageVisible('tracking')}
       {@const s = trackState(tracker.state)}
       <button class="tracker-pill" onclick={() => (ui.page = 'tracking')} title={collapsed ? `${s.label} — ${s.hint}` : s.hint}>
         <span class="pulse" class:live={tracker.state === 'tracking'} style:background={s.color}></span>
@@ -288,6 +290,9 @@
     <StickerLayer page={ui.page} />
   </main>
 
+  {#if guide.open}
+    {#await import('./components/Guide.svelte') then { default: Guide }}<Guide />{/await}
+  {/if}
   <ContextMenu />
   <ScopeDialog />
   <EventHoverCard />

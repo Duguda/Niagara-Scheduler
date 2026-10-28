@@ -28,6 +28,9 @@ src/                 프론트 (Svelte)
   pages/Notes.svelte 옵시디언 노트 페이지
   pages/Study.svelte 암기(인출 연습) 페이지
   lib/cloze.ts       굵게 → 빈칸 변환, 모드 판별
+  lib/pages.svelte.ts 기능(페이지) 켜고 끄기, 위젯↔기능 연결, 꺼진 기능의 백그라운드 작업 정지
+  lib/guide.svelte.ts / components/Guide.svelte  첫 실행 안내
+  components/PageToggles.svelte  기능 아이콘 타일 (설정·안내 공용)
 src-tauri/src/
   main.rs            앱 시작, 데이터 폴더 결정, 커맨드 등록
   db.rs              스키마 + 마이그레이션 + 공용 쿼리
@@ -51,10 +54,11 @@ docs/                이 문서들
 - 환경변수 `NORA_DATA_DIR`: 데이터 폴더를 직접 지정 (개발용, brief는 그 아래 `brief\`)
 
 ## 현재 상태
+- v0.9.0: 기능 켜고 끄기(위젯·패널·작업 시간 추적까지), 첫 실행 안내(설정에서 다시 보기), 버전 표시 버그 수정
 - v0.8.0: 암기 페이지(#암기 + 굵게 → 빈칸, ○/✕, 복습 상자), 일본어 글꼴 제거·페이지 지연 로딩, 꾸미기 설정으로 이동
 - v0.7.0: 저장 구조 개편(설치 폴더 data·brief), brief.schema.json, 설정의 저장 위치 카드
 - v0.6.x: 옵시디언 노트 페이지, 메모 → 옵시디언 보내기, 모닝 브리프 파일, Windows 자동 빌드
-- 검증: `npm run check` 오류 0, `npm run build` 통과, `cargo test` 60개 통과, 브라우저 미리보기(Playwright)로 화면·뒤로 가기·링크 확인
+- 검증: `npm run check` 오류 0, `npm run build` 통과, `cargo test` 61개 통과, 브라우저 미리보기(Playwright)로 화면·뒤로 가기·링크 확인
 - Windows CI 빌드: v0.7.0 성공. 실제 PC 확인은 아직
 - 알파 테스트 화면: 예시 데이터 미리보기를 claude.ai 아티팩트로 공개(비공개 링크). `npm run preview:build` 결과를 올림
 - GitHub: Duguda/Niagara-Scheduler main에 push (리모트 `origin`, 원작은 `upstream`)
@@ -85,6 +89,8 @@ docs/                이 문서들
 | 2026-10-28 | 그래프 뷰 | 보류 | 무겁고 '오늘 뭘 외울지'에는 불편. 설정에서 켜는 확장 기능으로 검토 |
 | 2026-10-28 | 복습 간격 1·2·4·8·16일 (라이트너 상자) | 임시 채택 | 사용자 참고 자료(인출 연습 영상) 확인 후 조정. 값은 cloze.rs BOX_INTERVALS 한 곳 |
 | 2026-10-28 | 일본어 글꼴 번들 제거 | 채택 | 화면 파일의 절반 이상. 사용자는 일본어를 쓰지 않음 |
+| 2026-10-28 | 페이지 숨기기 → 기능 끄기로 의미 확장 | 채택 | 범용 기능은 두되 원하면 끔. 끄면 위젯·패널·백그라운드 작업까지 멈춰야 가벼움에 의미가 있음 |
+| 2026-10-28 | 첫 실행 안내는 한 번만, 설정에서 다시 보기 | 채택 | 1회성으로 사라지되 필요할 때 다시 볼 수 있게 |
 | 2026-10-28 | 공유되던 번역 키 `trpg.year/noMatch/playUnit` → `common.year/noMatch/timesUnit` | 채택 | 일기·외주 화면이 계속 사용 |
 
 ## 개선 로드맵

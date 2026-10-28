@@ -6,6 +6,7 @@ import {
 } from '@lucide/svelte';
 import { api } from './api';
 import type { Key } from './i18n.svelte';
+import type { WidgetId } from './home.svelte';
 import { ui, type Page } from './state.svelte';
 
 export type NavPage = Exclude<Page, 'settings'>;
@@ -68,7 +69,36 @@ function leaveHiddenPage() {
   if (!isPageVisible(ui.page)) ui.page = visiblePages()[0]?.id ?? 'settings';
 }
 
+/** The feature each Overview / panel widget belongs to; widgets of a feature that is off are left out. */
+const WIDGET_FEATURE: Partial<Record<WidgetId, NavPage>> = {
+  agenda: 'calendar',
+  calendar: 'calendar',
+  todos: 'todos',
+  progress: 'todos',
+  ddays: 'ddays',
+  dday: 'ddays',
+  pomodoro: 'pomodoro',
+  working: 'tracking',
+  weekChart: 'tracking',
+  memos: 'memos',
+  bookmarks: 'bookmarks',
+  expenses: 'expenses',
+  commissions: 'commissions',
+  health: 'health',
+};
+
+export const widgetEnabled = (id: WidgetId) => {
+  const feature = WIDGET_FEATURE[id];
+  return !feature || !pagePrefs.hidden.includes(feature);
+};
+
+/** Background work that belongs to a feature stops while the feature is off. */
+function applyFeatures() {
+  api.setTrackerEnabled(!pagePrefs.hidden.includes('tracking')).catch(() => {});
+}
+
 async function save() {
+  applyFeatures();
   await api.setSetting(SETTING, JSON.stringify({ order: pagePrefs.order, hidden: pagePrefs.hidden })).catch(() => {});
 }
 

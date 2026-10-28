@@ -13,6 +13,7 @@
     HEADER_HEIGHTS, SIZES, WIDGETS, addTile, home, loadLayout, moveTile, removeTile, resetLayout, saveLayout, setHeader,
     setTileDday, setTileSize, type HeaderHeight, type TileSize, type WidgetId,
   } from '../lib/home.svelte';
+  import { widgetEnabled } from '../lib/pages.svelte';
   import { data, load, toast } from '../lib/state.svelte';
   import { byDdayTarget, ddayLabel, ddayUpcoming } from '../lib/dates';
   import ImageFrame from '../components/ImageFrame.svelte';
@@ -32,10 +33,14 @@
   let gallery = $state(false);
   let dragIndex = $state<number | null>(null);
 
-  // Widgets marked `multiple` (D-Day cards) can always be added again.
+  // Widgets marked `multiple` (D-Day cards) can always be added again. Widgets of features that
+  // are turned off (Settings) are neither offered nor shown; their tiles come back when turned on.
   const available = $derived(
-    (Object.keys(WIDGETS) as WidgetId[]).filter((id) => WIDGETS[id].multiple || !home.tiles.some((t) => t.id === id)),
+    (Object.keys(WIDGETS) as WidgetId[]).filter(
+      (id) => widgetEnabled(id) && (WIDGETS[id].multiple || !home.tiles.some((t) => t.id === id)),
+    ),
   );
+  const shownTiles = $derived(home.tiles.map((tile, i) => ({ tile, i })).filter(({ tile }) => widgetEnabled(tile.id)));
 
   let ddays = $state<DDay[]>([]);
   $effect(() => {
@@ -119,7 +124,7 @@
   {/if}
 
   <div class="tiles" class:editing role="list">
-    {#each home.tiles as tile, i (tile.uid)}
+    {#each shownTiles as { tile, i } (tile.uid)}
       {@const Widget = COMPONENTS[tile.id]}
       {@const TileIcon = WIDGETS[tile.id].icon}
       <div

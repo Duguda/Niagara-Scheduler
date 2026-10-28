@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Gem, Sticker,
+    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Gem, Sticker, BookOpen,
     CalendarDays, PanelRight, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
   } from '@lucide/svelte';
   import { calPrefs, setCalPrefs } from '../lib/calPrefs.svelte';
@@ -9,6 +9,8 @@
   import { WIDGETS, type WidgetId } from '../lib/home.svelte';
   import { broadcastPrefs } from '../lib/sync.svelte';
   import Modal from '../components/Modal.svelte';
+  import PageToggles from '../components/PageToggles.svelte';
+  import { openGuide } from '../lib/guide.svelte';
   import { api, type BackupManifest, type StorageInfo } from '../lib/api';
   import { DEFAULT_EXPORT_DIR, EXPORT_DIR_KEY, VAULT_KEY } from '../lib/obsidian';
   import { setDecorating, stickers } from '../lib/stickers.svelte';
@@ -413,6 +415,9 @@
         <span class="spacer"></span>
         <button class="btn small ghost" onclick={resetPages}><RotateCcw size={14} /> {t('set.pagesReset')}</button>
       </div>
+      <PageToggles />
+      <details class="order">
+        <summary>{t('set.pagesOrder')}</summary>
       <div class="page-list" role="list">
         {#each orderedPages() as page, i (page.id)}
           {@const shown = !pagePrefs.hidden.includes(page.id)}
@@ -446,6 +451,7 @@
           </div>
         {/each}
       </div>
+      </details>
     </section>
 
     <section class="card">
@@ -608,9 +614,10 @@
         <div class="icon"><Info size={18} /></div>
         <div>
           <h2>{t('set.about')}</h2>
-          <p class="muted small">{t('set.aboutBody', { v: 'v0.1.0' })}</p>
+          <p class="muted small">{t('set.aboutBody', { v: `v${__APP_VERSION__}` })}</p>
         </div>
       </div>
+      <button class="btn" onclick={openGuide}><BookOpen size={15} /> {t('guide.reopen')}</button>
     </section>
   </div>
 </div>
@@ -1000,6 +1007,19 @@
   }
   .sub-label {
     margin: 4px 0 8px;
+  }
+  .order {
+    margin-top: 12px;
+  }
+  .order summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 0;
+  }
+  .order[open] summary {
+    margin-bottom: 8px;
   }
   .page-list {
     display: flex;

@@ -470,6 +470,7 @@ export const api = {
     invoke<ActivitySummary>('activity_summary', { days, titleLimit }),
   activityTimeline: (day: DateStr) => invoke<Activity[]>('activity_timeline', { day }),
   trackerStatus: () => invoke<TrackerStatus>('tracker_status'),
+  setTrackerEnabled: (enabled: boolean) => invoke<void>('set_tracker_enabled', { enabled }),
   trackerSettings: () => invoke<TrackerSettings>('tracker_settings'),
   setTrackerSettings: (settings: TrackerSettings) => invoke<void>('set_tracker_settings', { settings }),
 };

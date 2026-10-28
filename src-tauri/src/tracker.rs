@@ -77,6 +77,9 @@ impl TrackerSettings {
 /// State shared between the UI and the tracker thread.
 pub struct TrackerShared {
     pub paused: AtomicBool,
+    /// False while the Working time feature is turned off in Settings: the thread then stops
+    /// reading the focused window altogether (unlike `paused`, which is the user's pause button).
+    pub enabled: AtomicBool,
     /// 0 disables idle detection.
     pub idle_threshold_secs: AtomicU64,
     pub tracked_apps: Mutex<Vec<String>>,
@@ -132,8 +135,20 @@ impl TrackerShared {
     }
 }
 
-pub fn start(db_path: PathBuf, settings: TrackerSettings) -> Arc<TrackerShared> {
+/// Whether the Working time feature is on, from the sidebar settings (`ui.pages`).
+pub fn feature_enabled(db: &db::Db) -> bool {
+    let hidden = db
+        .setting("ui.pages")
+        .ok()
+        .flatten()
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+        .and_then(|v| v.get("hidden").cloned());
+    !hidden.and_then(|h| h.as_array().cloned()).is_some_and(|h| h.iter().any(|p| p == "tracking"))
+}
+
+pub fn start(db_path: PathBuf, settings: TrackerSettings, enabled: bool) -> Arc<TrackerShared> {
     let shared = Arc::new(TrackerShared {
+        enabled: AtomicBool::new(enabled),
         paused: AtomicBool::new(settings.paused),
         idle_threshold_secs: AtomicU64::new(settings.idle_threshold_secs),
         tracked_apps: Mutex::new(settings.tracked_apps),
@@ -171,6 +186,14 @@ fn run(db_path: PathBuf, shared: Arc<TrackerShared>) {
     let own_exe = std::env::current_exe().ok();
 
     loop {
+        if !shared.enabled.load(Ordering::Relaxed) {
+            // Feature off: no window reads, and only a slow check for being turned back on.
+            if seg.take().is_some() || shared.status().state != TrackState::Paused {
+                shared.set_status(TrackerStatus { state: TrackState::Paused, ..Default::default() });
+            }
+            std::thread::sleep(Duration::from_secs(5));
+            continue;
+        }
         std::thread::sleep(Duration::from_secs(1));
         let now = db::now_ts();
 
@@ -284,4 +307,19 @@ fn idle_seconds() -> Option<f64> {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn idle_seconds() -> Option<f64> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn working_time_follows_the_feature_switch() {
+        let (db, _) = crate::db::tests::temp_db();
+        assert!(feature_enabled(&db), "on when nothing is saved");
+        db.set_setting("ui.pages", r#"{"order":[],"hidden":["reading"]}"#).unwrap();
+        assert!(feature_enabled(&db));
+        db.set_setting("ui.pages", r#"{"order":[],"hidden":["tracking"]}"#).unwrap();
+        assert!(!feature_enabled(&db));
+    }
 }

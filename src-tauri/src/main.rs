@@ -93,7 +93,7 @@ fn main() {
             }
             reminders::start(app.handle().clone(), db_path.clone());
             brief::start(db_path.clone(), storage.brief.clone());
-            let tracker = tracker::start(db_path, tracker::TrackerSettings::load(&db));
+            let tracker = tracker::start(db_path, tracker::TrackerSettings::load(&db), tracker::feature_enabled(&db));
             app.manage(AppState { db: Mutex::new(db), tracker, images_dir, data_dir: dir, storage });
 
             // The main window starts hidden (tauri.conf.json). Started from sign-in, only the panel
@@ -197,6 +197,7 @@ fn main() {
             commands::activity_summary,
             commands::activity_timeline,
             commands::tracker_status,
+            commands::set_tracker_enabled,
             commands::tracker_settings,
             commands::set_tracker_settings,
         ])

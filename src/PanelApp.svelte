@@ -16,6 +16,7 @@
   import { loadCalPrefs } from './lib/calPrefs.svelte';
   import { initSync } from './lib/sync.svelte';
   import { loadPanelWidgets, panelApi } from './lib/panel';
+  import { initPages, widgetEnabled } from './lib/pages.svelte';
 
   let widgets = $state<WidgetId[]>([]);
   let onTop = $state(true);
@@ -30,6 +31,7 @@
   }
 
   onMount(() => {
+    initPages();
     document.documentElement.classList.add('panel-window');
     reloadPrefs();
     refreshTags();
@@ -76,7 +78,7 @@
   </header>
 
   <div class="body">
-    {#each widgets as id (id)}
+    {#each widgets.filter(widgetEnabled) as id (id)}
       {@const Widget = WIDGET_COMPONENTS[id]}
       <div class="tile" style:height="{heightOf(id)}px">
         <div class="content"><Widget ddayId={null} /></div>

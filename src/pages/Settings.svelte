@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Gem, Sticker, BookOpen,
+    AppWindow, ArrowDown, ArrowUp, Check, Database, GripVertical, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Pencil, Sticker, BookOpen,
     CalendarDays, PanelRight, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
   } from '@lucide/svelte';
   import { calPrefs, setCalPrefs } from '../lib/calPrefs.svelte';
@@ -580,7 +580,7 @@
             <span class="muted small">{t('store.notesHint')}</span>
           </div>
           <span class="brief-path small truncate" class:unset={!vaultDir} title={vaultDir}>{vaultDir || t('store.notSet')}</span>
-          <button class="btn small" onclick={() => (ui.page = 'notes')}><Gem size={14} /> {t('store.change')}</button>
+          <button class="btn small" onclick={() => (ui.page = 'notes')}><Pencil size={14} /> {t('store.change')}</button>
         </div>
         {#if vaultDir}
           <div class="store-row">
@@ -589,7 +589,7 @@
               <span class="muted small">{t('store.exportHint')}</span>
             </div>
             <span class="brief-path small truncate" title={exportDir}>{exportDir}</span>
-            <button class="btn small" onclick={() => (ui.page = 'notes')}><Gem size={14} /> {t('store.change')}</button>
+            <button class="btn small" onclick={() => (ui.page = 'notes')}><Pencil size={14} /> {t('store.change')}</button>
           </div>
         {/if}
       </div>
@@ -617,7 +617,7 @@
           <p class="muted small">{t('set.aboutBody', { v: `v${__APP_VERSION__}` })}</p>
         </div>
       </div>
-      <button class="btn" onclick={openGuide}><BookOpen size={15} /> {t('guide.reopen')}</button>
+      <button class="btn guide-btn" onclick={openGuide}><BookOpen size={15} /> {t('guide.reopen')}</button>
     </section>
   </div>
 </div>
@@ -690,6 +690,9 @@
     align-items: center;
     gap: 14px;
     margin-bottom: 18px;
+  }
+  .guide-btn {
+    margin: 18px 0 2px;
   }
   .about .section-head {
     margin-bottom: 0;

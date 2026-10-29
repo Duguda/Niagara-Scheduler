@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import {
     AppWindow, Check, ChevronDown, Database, PanelsTopLeft, RotateCcw, Download, Expand, Info, Languages, LoaderCircle, Monitor, Moon, Palette, Plus, Sun, SwatchBook, RefreshCw, FolderTree, FolderOpen, Pencil, Sticker, BookOpen,
     CalendarDays, PanelRight, Timer, Pipette, Trash, TriangleAlert, Upload, X, ZoomIn,
@@ -147,6 +147,13 @@
   const run = (p: Promise<unknown>) => p.catch((e) => toast(String(e), 'error'));
 
   // ---- backup / restore / reset
+  let dangerOpen = $state(false);
+  let dangerEl = $state<HTMLDetailsElement>();
+  async function openDangerZone() {
+    dangerOpen = true;
+    await tick();
+    dangerEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
   let exporting = $state(false);
   let importing = $state<{ path: string; manifest: BackupManifest } | null>(null);
   let resetOpen = $state(false);
@@ -524,6 +531,8 @@
           </span>
         </button>
       </div>
+      <!-- Restoring replaces everything, so it lives in the danger zone; this points there. -->
+      <button class="btn ghost small to-danger" onclick={openDangerZone}><Upload size={14} /> {t('data.importWhere')}</button>
     </section>
 
     <section class="card">
@@ -594,7 +603,7 @@
       </div>
     </section>
 
-    <details class="card danger-zone">
+    <details class="card danger-zone" bind:open={dangerOpen} bind:this={dangerEl}>
       <summary class="section-head">
         <div class="icon danger-icon"><TriangleAlert size={18} /></div>
         <div>
@@ -1205,6 +1214,10 @@
   }
   .strong {
     font-weight: 650;
+  }
+  .to-danger {
+    align-self: flex-start;
+    margin-top: 4px;
   }
   .danger-zone {
     border-color: color-mix(in srgb, var(--danger) 45%, var(--border));

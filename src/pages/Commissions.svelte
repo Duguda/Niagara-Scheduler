@@ -1,6 +1,7 @@
 <script lang="ts">
   // Commissions (외주): a board with one column per stage (drag cards along), the money received
   // and still owed, deadlines, and the clients behind them.
+  import { holdRepeat } from '../lib/hold';
   import { onMount } from 'svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import {
@@ -523,10 +524,10 @@
       <div class="field">
         <label for="cm-revisions">{t('cm.revisions')}</label>
         <div class="stepper">
-          <button type="button" onclick={() => editing && setRevisions(editing.revisions - 1)} disabled={editing.revisions <= 0} aria-label={t('pomo.decrease')}><Minus size={14} /></button>
+          <button type="button" use:holdRepeat={() => editing && setRevisions(editing.revisions - 1)} disabled={editing.revisions <= 0} aria-label={t('pomo.decrease')}><Minus size={14} /></button>
           <input id="cm-revisions" class="tabular" type="number" min="0" max="999" value={editing.revisions} oninput={(e) => setRevisions(Number(e.currentTarget.value))} />
           <span class="unit">{t('common.timesUnit')}</span>
-          <button type="button" onclick={() => editing && setRevisions(editing.revisions + 1)} aria-label={t('pomo.increase')}><Plus size={14} /></button>
+          <button type="button" use:holdRepeat={() => editing && setRevisions(editing.revisions + 1)} aria-label={t('pomo.increase')}><Plus size={14} /></button>
         </div>
       </div>
     </div>

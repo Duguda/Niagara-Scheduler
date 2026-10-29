@@ -1,6 +1,7 @@
 <script lang="ts">
   // Pomodoro focus history for a day, a week or a month: totals, a chart and what the time
   // went to. Sessions count toward the day (and hour) they started, like the Analytics page.
+  import { holdRepeat } from '../lib/hold';
   import { ChevronLeft, ChevronRight, Flame } from '@lucide/svelte';
   import BarChart from './BarChart.svelte';
   import { api, type PomodoroSession } from '../lib/api';
@@ -117,9 +118,9 @@
   </div>
 
   <div class="nav">
-    <button class="icon-btn" onclick={() => step(-1)} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
+    <button class="icon-btn" use:holdRepeat={() => step(-1)} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
     <span class="period">{title}</span>
-    <button class="icon-btn" onclick={() => step(1)} aria-label={t('common.next')}><ChevronRight size={18} /></button>
+    <button class="icon-btn" use:holdRepeat={() => step(1)} aria-label={t('common.next')}><ChevronRight size={18} /></button>
     {#if !isCurrent}<button class="btn small" onclick={() => (cursor = today())}>{t('common.today')}</button>{/if}
   </div>
 

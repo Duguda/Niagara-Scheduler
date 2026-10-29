@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { holdRepeat } from '../lib/hold';
   import Select from '../components/Select.svelte';
   import { onMount } from 'svelte';
   import { slide } from 'svelte/transition';
@@ -96,9 +97,9 @@
   {/if}
 
   <div class="day-nav">
-    <button class="icon-btn" onclick={() => (day = addDays(day, -1))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
+    <button class="icon-btn" use:holdRepeat={() => (day = addDays(day, -1))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
     <h2>{day === today() ? t('common.today') : fmt(day, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
-    <button class="icon-btn" onclick={() => (day = addDays(day, 1))} disabled={day >= today()} aria-label={t('common.next')}><ChevronRight size={18} /></button>
+    <button class="icon-btn" use:holdRepeat={() => (day = addDays(day, 1))} disabled={day >= today()} aria-label={t('common.next')}><ChevronRight size={18} /></button>
     {#if day !== today()}<button class="btn small" onclick={() => (day = today())}>{t('common.today')}</button>{/if}
   </div>
 

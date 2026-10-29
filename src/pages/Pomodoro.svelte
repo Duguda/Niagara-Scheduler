@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { holdRepeat } from '../lib/hold';
   import { Coffee, Flame, Pause, Play, RotateCcw, SkipForward, Volume2 } from '@lucide/svelte';
   import { api, type PomodoroSession } from '../lib/api';
   import { dayStartTs, fmtDuration, fmtTs, today } from '../lib/dates';
@@ -43,25 +44,6 @@
 
   function nudge(s: (typeof settings)[number], delta: number) {
     pomodoro[s.key] = Math.min(s.max, Math.max(s.min, pomodoro[s.key] + delta));
-  }
-
-  // Holding − / + repeats, faster the longer it is held (and in steps of 5 for long ranges).
-  let holdTimer: ReturnType<typeof setTimeout> | null = null;
-  function startHold(s: (typeof settings)[number], dir: 1 | -1) {
-    stopHold(false);
-    nudge(s, dir);
-    let n = 0;
-    const tickHold = () => {
-      n++;
-      nudge(s, dir * (n > 12 && s.max >= 60 ? 5 : 1));
-      holdTimer = setTimeout(tickHold, Math.max(40, 220 * Math.pow(0.85, n)));
-    };
-    holdTimer = setTimeout(tickHold, 400);
-  }
-  function stopHold(save = true) {
-    if (holdTimer) clearTimeout(holdTimer);
-    holdTimer = null;
-    if (save) pomodoro.saveSettings();
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -146,19 +128,11 @@
               <span>{t(s.label)}</span>
               <div class="stepper">
                 <button
-                  onpointerdown={(e) => { e.preventDefault(); startHold(s, -1); }}
-                  onpointerup={() => stopHold()}
-                  onpointerleave={() => holdTimer && stopHold()}
-                  onpointercancel={() => stopHold()}
-                  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nudge(s, -1); pomodoro.saveSettings(); } }}
+                  use:holdRepeat={{ step: (level) => nudge(s, -1 * (level >= 3 && s.max >= 60 ? 5 : 1)), done: () => pomodoro.saveSettings() }}
                   aria-label={t('pomo.decrease')}>−</button>
                 <span class="tabular">{pomodoro[s.key]} <span class="faint small">{t(s.unit)}</span></span>
                 <button
-                  onpointerdown={(e) => { e.preventDefault(); startHold(s, 1); }}
-                  onpointerup={() => stopHold()}
-                  onpointerleave={() => holdTimer && stopHold()}
-                  onpointercancel={() => stopHold()}
-                  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nudge(s, 1); pomodoro.saveSettings(); } }}
+                  use:holdRepeat={{ step: (level) => nudge(s, 1 * (level >= 3 && s.max >= 60 ? 5 : 1)), done: () => pomodoro.saveSettings() }}
                   aria-label={t('pomo.increase')}>+</button>
               </div>
             </div>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { holdRepeat } from '../lib/hold';
+  import MonthTitle from '../components/MonthTitle.svelte';
   import { CalendarPlus, ChevronLeft, ChevronRight, Leaf, Link2, MapPin, Repeat, Settings2, Tags, Target } from '@lucide/svelte';
   import CalendarConnect from '../components/CalendarConnect.svelte';
   import Modal from '../components/Modal.svelte';
@@ -138,11 +140,11 @@
 
 <div class="calendar">
   <header>
-    <h1 class="title">{title}</h1>
+    <h1 class="title">{#if view === 'month'}<MonthTitle date={cursor} onchange={(d) => (cursor = d)} />{:else}{title}{/if}</h1>
     <div class="nav">
-      <button class="icon-btn" onclick={() => step(-1)} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
+      <button class="icon-btn" use:holdRepeat={() => step(-1)} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
       <button class="btn small" onclick={() => (cursor = today())}>{t('common.today')}</button>
-      <button class="icon-btn" onclick={() => step(1)} aria-label={t('common.next')}><ChevronRight size={18} /></button>
+      <button class="icon-btn" use:holdRepeat={() => step(1)} aria-label={t('common.next')}><ChevronRight size={18} /></button>
     </div>
     <span class="spacer"></span>
     <button class="btn" onclick={() => (connectOpen = true)} title={t('sub.open')}><Link2 size={16} /> {t('sub.open')}</button>

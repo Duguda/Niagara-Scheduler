@@ -63,6 +63,7 @@ export const ja: Record<Key, string> = {
   'cal.week': '週',
   'cal.day': '日',
   'cal.new': '新規',
+  'cal.typeYear': '年を入力',
   'cal.nothingPlanned': '予定はありません。ゆっくりどうぞ！',
   'cal.addSomething': '予定を追加',
   'cal.upcomingDdays': 'もうすぐのDデイ',

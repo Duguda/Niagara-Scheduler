@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { holdRepeat } from '../lib/hold';
+  import MonthTitle from './MonthTitle.svelte';
   import { ChevronLeft, ChevronRight } from '@lucide/svelte';
   import type { CalEvent } from '../lib/api';
   import { addMonths, covers, fmt, monthStart, range, today, weekStart, weekdayNames } from '../lib/dates';
@@ -45,9 +47,9 @@
 
 <div class="mini">
   <div class="head">
-    <span class="title">{fmt(shown, { month: 'long', year: 'numeric' })}</span>
-    <button class="icon-btn" onclick={() => (shownOverride = addMonths(shown, -1))} aria-label={t('common.previous')}><ChevronLeft size={16} /></button>
-    <button class="icon-btn" onclick={() => (shownOverride = addMonths(shown, 1))} aria-label={t('common.next')}><ChevronRight size={16} /></button>
+    <span class="title"><MonthTitle date={shown} onchange={(d) => (shownOverride = d)} /></span>
+    <button class="icon-btn" use:holdRepeat={() => (shownOverride = addMonths(shown, -1))} aria-label={t('common.previous')}><ChevronLeft size={16} /></button>
+    <button class="icon-btn" use:holdRepeat={() => (shownOverride = addMonths(shown, 1))} aria-label={t('common.next')}><ChevronRight size={16} /></button>
   </div>
   <div class="grid">
     {#each weekdayNames('narrow') as d, i (i)}

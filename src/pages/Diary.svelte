@@ -1,6 +1,7 @@
 <script lang="ts">
   // Diary: one open book spread per day. Pages turn like a real notebook (‹ ›, the page corners or
   // ← →), and the week and year views give an overview of what was written and how the days felt.
+  import { holdRepeat } from '../lib/hold';
   import { onDestroy, onMount } from 'svelte';
   import {
     BookHeart, CalendarDays, CalendarRange, Check, ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, PenLine, RefreshCw,
@@ -249,9 +250,9 @@
   {#if view === 'day'}
     <div class="toolbar">
       <div class="nav">
-        <button class="icon-btn" onclick={() => step(-1)} aria-label={t('diary.prevDay')} title={t('diary.prevDay')}><ChevronLeft size={18} /></button>
+        <button class="icon-btn" use:holdRepeat={() => step(-1)} aria-label={t('diary.prevDay')} title={t('diary.prevDay')}><ChevronLeft size={18} /></button>
         <div class="date-pick"><DateField value={day} label={t('common.date')} onchange={(v) => v && goTo(v)} /></div>
-        <button class="icon-btn" onclick={() => step(1)} aria-label={t('diary.nextDay')} title={t('diary.nextDay')}><ChevronRight size={18} /></button>
+        <button class="icon-btn" use:holdRepeat={() => step(1)} aria-label={t('diary.nextDay')} title={t('diary.nextDay')}><ChevronRight size={18} /></button>
         {#if day !== todayStr}<button class="btn small" onclick={() => goTo(todayStr)}>{t('common.today')}</button>{/if}
       </div>
       <span class="spacer"></span>
@@ -328,9 +329,9 @@
   {:else if view === 'week'}
     <div class="toolbar">
       <div class="nav">
-        <button class="icon-btn" onclick={() => (day = addDays(day, -7))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
+        <button class="icon-btn" use:holdRepeat={() => (day = addDays(day, -7))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
         <span class="range strong">{fmtRange(weekDays[0], weekDays[6], { month: 'short', day: 'numeric' })}</span>
-        <button class="icon-btn" onclick={() => (day = addDays(day, 7))} aria-label={t('common.next')}><ChevronRight size={18} /></button>
+        <button class="icon-btn" use:holdRepeat={() => (day = addDays(day, 7))} aria-label={t('common.next')}><ChevronRight size={18} /></button>
         {#if !weekDays.includes(todayStr)}<button class="btn small" onclick={() => (day = todayStr)}>{t('common.today')}</button>{/if}
       </div>
       <span class="spacer"></span>
@@ -363,9 +364,9 @@
   {:else}
     <div class="toolbar">
       <div class="nav">
-        <button class="icon-btn" onclick={() => (year = String(Number(year) - 1))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
+        <button class="icon-btn" use:holdRepeat={() => (year = String(Number(year) - 1))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
         <span class="range strong">{t('common.year', { year })}</span>
-        <button class="icon-btn" onclick={() => (year = String(Number(year) + 1))} aria-label={t('common.next')}><ChevronRight size={18} /></button>
+        <button class="icon-btn" use:holdRepeat={() => (year = String(Number(year) + 1))} aria-label={t('common.next')}><ChevronRight size={18} /></button>
       </div>
       <span class="spacer"></span>
       <span class="muted small">{t('diary.daysWritten', { n: overview.length })}</span>

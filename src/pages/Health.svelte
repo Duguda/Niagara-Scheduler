@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { holdRepeat } from '../lib/hold';
   import { onMount } from 'svelte';
   import {
     CalendarPlus, ChevronLeft, ChevronRight, CopyPlus, Flame, Pencil, Plus, Salad, Settings2, Trash, Utensils, CircleCheck, Circle,
@@ -259,9 +260,9 @@
     </div>
     <span class="spacer"></span>
     <div class="day-nav">
-      <button class="icon-btn" onclick={() => (day = addDays(day, -1))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
+      <button class="icon-btn" use:holdRepeat={() => (day = addDays(day, -1))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
       <div class="day-field"><DateField value={day} label={t('common.date')} onchange={(v) => v && (day = v)} /></div>
-      <button class="icon-btn" onclick={() => (day = addDays(day, 1))} aria-label={t('common.next')}><ChevronRight size={18} /></button>
+      <button class="icon-btn" use:holdRepeat={() => (day = addDays(day, 1))} aria-label={t('common.next')}><ChevronRight size={18} /></button>
       {#if !isToday}<button class="btn small" onclick={() => (day = today())}>{t('common.today')}</button>{/if}
     </div>
     <button class="btn" onclick={openSettings}><Settings2 size={16} /> {t('hl.settings')}</button>

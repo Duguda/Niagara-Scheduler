@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { holdRepeat } from '../lib/hold';
+  import MonthTitle from '../components/MonthTitle.svelte';
   import Select from '../components/Select.svelte';
   import { onMount } from 'svelte';
   import {
@@ -144,9 +146,9 @@
     </div>
     <span class="spacer"></span>
     <div class="month-nav">
-      <button class="icon-btn" onclick={() => (month = addMonths(month, -1))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
-      <span class="month-label">{fmt(month, { year: 'numeric', month: 'long' })}</span>
-      <button class="icon-btn" onclick={() => (month = addMonths(month, 1))} aria-label={t('common.next')}><ChevronRight size={18} /></button>
+      <button class="icon-btn" use:holdRepeat={() => (month = addMonths(month, -1))} aria-label={t('common.previous')}><ChevronLeft size={18} /></button>
+      <span class="month-label"><MonthTitle date={month} onchange={(d) => (month = d)} /></span>
+      <button class="icon-btn" use:holdRepeat={() => (month = addMonths(month, 1))} aria-label={t('common.next')}><ChevronRight size={18} /></button>
       {#if !isCurrentMonth}<button class="btn small" onclick={() => (month = monthStart(today()))}>{t('common.today')}</button>{/if}
     </div>
     <button class="btn" onclick={openSettings}><Settings2 size={16} /> {t('ex.settings')}</button>
